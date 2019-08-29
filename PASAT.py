@@ -8,7 +8,8 @@ Created on Wed Aug 28 15:56:33 2019
 """
 
 from PyQt5.QtWidgets import QApplication, QDialog, QPushButton, QHBoxLayout,\
- QGroupBox, QVBoxLayout, QLabel, QGridLayout, QWidget, QLineEdit, QMessageBox
+ QGroupBox, QVBoxLayout, QLabel, QGridLayout, QWidget, QLineEdit, QMessageBox,\
+ QMainWindow, QAction
 import sys, os
 from PyQt5 import QtGui
 from PyQt5 import QtCore
@@ -18,17 +19,19 @@ import gettext
 
 #TODO: Define sessions, and inside each session record the data in a csv file
 #TODO: Measure the first 1/3 and the last 1/3 stats separately
-#TODO: Add English support
 #BUG: There's a delay in showing the numbers on the screen
 #TODO: On keyPressEvent, fix the problem with Key_Enter, Key_Q is not user friendly
+#TODO: Used globals for the language change, it works but isn't a good practice!
 
-NUMBERS_PER_TRIAL = 10
+NUMBERS_PER_TRIAL = 3
 INTERVAL = 3 #seconds
 TRIAL_LENGTH = NUMBERS_PER_TRIAL * INTERVAL #seconds
-LANGUAGE = "fa"
+LANGUAGE = "en"
+
+EXIT_CODE_REBOOT = -123
 
 ### Helper Functions ####
-def _n(number_str):
+def en_to_ar_num(number_str):
     """
     Converts English string numbers to Arabic string numbers
     """
@@ -49,15 +52,19 @@ def _n(number_str):
     for digit in str(number_str):
         arnum += dic[digit]    
     return arnum
-
-if LANGUAGE == "fa":
-    fa = gettext.translation('PASAT', localedir = 'locale', languages=['fa'])
-    fa.install()
-    _ = fa.gettext
-else:
-    _ = gettext.gettext
-    _n = gettext.gettext #TODO: better approach
-
+def redefine_gettext():
+    if LANGUAGE == "fa":
+        fa = gettext.translation('PASAT', localedir = 'locale', languages=['fa'])
+        fa.install()
+        _ = fa.gettext
+        _n = en_to_ar_num
+    else:
+        _ = gettext.gettext
+        # if language is not "fa", instead of english to arabic number translator function
+        # pass the gettext.gettext as _n, that does nothing.
+        _n = gettext.gettext
+    return _, _n
+_, _n = redefine_gettext()
 def non_zero_mean(lst):
     """
     Returns the mean of non-zero numbers of a list
@@ -107,9 +114,9 @@ class PlayNumbersThread(QtCore.QThread):
             # Record the time that number has started playing, to calculate
             # its length, and also to calculate reaction time
             time_before_playsound = time.time()
+            self.new_number.emit(number, time_before_playsound)
             playsound(os.path.join("audio",LANGUAGE, "{:d}.wav".format(number)))
             length = time.time() - time_before_playsound
-            self.new_number.emit(number, time.time())
             time.sleep(INTERVAL-length)
         self.finished.emit()
             
@@ -139,7 +146,7 @@ class TimerThread(QtCore.QThread):
             self.time_step.emit(total_time)
         
 #### Main Window ####
-class Window(QWidget):
+class Window(QMainWindow):
     """
     The main Window of the program. See the documentation on each function for
     more detail.
@@ -159,8 +166,18 @@ class Window(QWidget):
         self.title = "PASAT"
         self.top = 100 #TODO: Make the coordinates better
         self.left = 100
-        self.width = 400
-        self.height = 300
+        self.width = 600
+        self.height = 600
+        global _, _n
+        _, _n = redefine_gettext()
+
+        # Set the title and geometry of the window
+        ##self.setWindowIcon(QtGui.QIcon("icon.png"))
+        self.setWindowTitle(self.title)
+        self.setGeometry(self.left, self.top, self.width, self.height)
+        self._center()
+
+        self.CreateMenu()
         self.InitWindow()
         
         # Create a list of random_numbers with the length of NUMBERS_PER_TRIAL. The range
@@ -192,8 +209,59 @@ class Window(QWidget):
         # Initialize time_presented. This is not the time_presented for the first
         # number, it's only here to prevent undefined error.
         self.time_presented = time.time()
+        
+    def _center(self, widget=None):
+        if not widget:
+            widget = self
+        frameGm = widget.frameGeometry()
+        screen = App.desktop().screenNumber(QApplication.desktop().cursor().pos())
+        centerPoint = App.desktop().screenGeometry(screen).center()
+        frameGm.moveCenter(centerPoint)
+        widget.move(frameGm.topLeft())
  
- 
+    def CreateMenu(self):
+        mainMenu = self.menuBar()
+        sessionMenu = mainMenu.addMenu(_('Session'))
+        #runMenu = mainMenu.addMenu(_('Run'))
+        optionsMenu = mainMenu.addMenu(_('Options'))
+        helpMenu = mainMenu.addMenu(_('Help'))
+        
+#        newSessionAction = QAction(_('New Session'), self)
+#        sessionMenu.addAction(newSessionAction)
+#        saveSessionAction = QAction(_('Save Session'), self)
+#        sessionMenu.addAction(saveSessionAction)
+#        showSessionResultsAction = QAction(_("Show Results"), self)
+#        sessionMenu.addAction(showSessionResultsAction)
+        exitAction = QAction(_("Exit"), self)
+        exitAction.triggered.connect(self._exit)
+        sessionMenu.addAction(exitAction)
+        
+#        startRunAction = QAction(_("Start"), self)
+#        runMenu.addAction(startRunAction)
+#        stopRunAction = QAction(_("Stop"), self)
+#        runMenu.addAction(stopRunAction)
+#        pauseRunAction = QAction(_("Pause"), self)
+#        runMenu.addAction(pauseRunAction)
+        
+#        preferencesAction = QAction(_("Preferences"), self)
+#        optionsMenu.addAction(preferencesAction)
+        languagesMenu = optionsMenu.addMenu(_("Languages"))
+        faAction = QAction(_("Farsi"), self)
+        if LANGUAGE == "fa":
+            faAction.setEnabled(False)
+        faAction.triggered.connect(self._change_language)
+        languagesMenu.addAction(faAction)
+        enAction = QAction(_("English"), self)
+        if LANGUAGE == "en":
+            enAction.setEnabled(False)
+        enAction.triggered.connect(self._change_language)
+        languagesMenu.addAction(enAction)
+        
+        aboutAction = QAction(_("About"), self)
+        helpMenu.addAction(aboutAction)
+#        helpAction = QAction(_("How it woks"), self)
+#        helpMenu.addAction(helpAction)
+         
     def InitWindow(self):
         """
         Adds elements to the Window. Inside the Window is the vbox. And each
@@ -201,13 +269,9 @@ class Window(QWidget):
         timer_label, answerButtons, answer_label and actionButtons. All widgets except
         registerForm are hidden before that the registration is completed. They are .show n
         inside _on_click_register. TODO: There might be a better solution to this.
-        """
-        # Set the title and geometry of the window
-        ##self.setWindowIcon(QtGui.QIcon("icon.png"))
-        self.setWindowTitle(self.title)
-        self.setGeometry(self.left, self.top, self.width, self.height)
-        
+        """        
         # Initialize the vertical layout container vbox
+        self.mainBox = QGroupBox()
         vbox = QVBoxLayout()
         
         self.CreateRegisterForm()
@@ -248,7 +312,8 @@ class Window(QWidget):
 
         # Assign vbox as the primary layout of the Window (and parent to all other
         # widgets and groups of widgets)
-        self.setLayout(vbox)
+        self.mainBox.setLayout(vbox)
+        self.setCentralWidget(self.mainBox)
         
         # Display the Window
         self.show()
@@ -486,6 +551,7 @@ class Window(QWidget):
         results_dialog = QDialog(self)
         results_dialog.setWindowTitle(_("Results"))
         results_dialog.setGeometry(self.left, self.top, self.width, self.height)
+        self._center(results_dialog)
         
         # Initialize the vertical layout container vbox and add the title
         vbox = QVBoxLayout()
@@ -512,7 +578,16 @@ class Window(QWidget):
             results_dialog.setLayoutDirection(QtCore.Qt.RightToLeft)
         # Show the dialog #TODO: add exit button
         results_dialog.show()
-        
+    
+    def _change_language(self):
+        global LANGUAGE
+        selected_language = self.sender().text()
+        if selected_language == "Farsi":
+            LANGUAGE = "fa"
+        elif selected_language == "English":
+            LANGUAGE = "en"
+        App.exit(EXIT_CODE_REBOOT)
+    
     def _exit(self):
         """
         Exits the program
@@ -520,9 +595,12 @@ class Window(QWidget):
         sys.exit()
     
 if __name__ == '__main__':
-    App = QApplication(sys.argv)
-    if LANGUAGE == "fa":
-        App.setLayoutDirection(QtCore.Qt.RightToLeft)
-    window = Window()
-    sys.exit(App.exec())
+    currentExitCode = EXIT_CODE_REBOOT
+    while currentExitCode == EXIT_CODE_REBOOT:
+        App = QApplication(sys.argv)
+        if LANGUAGE == "fa":
+            App.setLayoutDirection(QtCore.Qt.RightToLeft)
+        window = Window()
+        currentExitCode = App.exec_()
+        App = None
 
