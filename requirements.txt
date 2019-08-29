@@ -1,0 +1,3 @@
+playsound
+PyQt5==5.13
+numpy
