@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Paced Auditory Serial Addition Test 
-with PyQt5 on Python3.7
+with PyQt5 on Python3.7 (developed and tested under Anaconda 2019.7)
 Created on Wed Aug 28 15:56:33 2019
 
 @author: Amin Saberi
@@ -9,21 +9,26 @@ Created on Wed Aug 28 15:56:33 2019
 
 from PyQt5.QtWidgets import QApplication, QDialog, QPushButton, QHBoxLayout,\
  QGroupBox, QVBoxLayout, QLabel, QGridLayout, QWidget, QLineEdit, QMessageBox
-import sys
+import sys, os
 from PyQt5 import QtGui
-from PyQt5.QtCore import QRect
 from PyQt5 import QtCore
-import sys
 from playsound import playsound
 import random, time
-import numpy as np
+import gettext
+
+#TODO: Define sessions, and inside each session record the data in a csv file
+#TODO: Measure the first 1/3 and the last 1/3 stats separately
+#TODO: Add English support
+#BUG: There's a delay in showing the numbers on the screen
+#TODO: On keyPressEvent, fix the problem with Key_Enter, Key_Q is not user friendly
 
 NUMBERS_PER_TRIAL = 10
 INTERVAL = 3 #seconds
 TRIAL_LENGTH = NUMBERS_PER_TRIAL * INTERVAL #seconds
+LANGUAGE = "fa"
 
 ### Helper Functions ####
-def enToArNumb(number):
+def _n(number_str):
     """
     Converts English string numbers to Arabic string numbers
     """
@@ -41,9 +46,30 @@ def enToArNumb(number):
         '.':'.',
     }
     arnum = ''
-    for digit in str(number):
+    for digit in str(number_str):
         arnum += dic[digit]    
     return arnum
+
+if LANGUAGE == "fa":
+    fa = gettext.translation('PASAT', localedir = 'locale', languages=['fa'])
+    fa.install()
+    _ = fa.gettext
+else:
+    _ = gettext.gettext
+    _n = gettext.gettext #TODO: better approach
+
+def non_zero_mean(lst):
+    """
+    Returns the mean of non-zero numbers of a list
+    """
+    summation = 0
+    count = 0
+    for num in lst:
+        if num:
+            summation += num
+            count += 1
+    return summation/count
+            
 
 ### Threads ####
 class PlayNumbersThread(QtCore.QThread):
@@ -81,7 +107,7 @@ class PlayNumbersThread(QtCore.QThread):
             # Record the time that number has started playing, to calculate
             # its length, and also to calculate reaction time
             time_before_playsound = time.time()
-            playsound("{:d}.wav".format(number))
+            playsound(os.path.join("audio",LANGUAGE, "{:d}.wav".format(number)))
             length = time.time() - time_before_playsound
             self.new_number.emit(number, time.time())
             time.sleep(INTERVAL-length)
@@ -236,11 +262,11 @@ class Window(QWidget):
         hbox = QHBoxLayout()
         self.name_input = QLineEdit(self)
 #        self.lineedit.setFont(QtGui.QFont("Sanserif", 15))
-        name_label = QLabel("نام")
+        name_label = QLabel(_("Name"))
 #        self.label.setFont(QtGui.QFont("Sanserif", 15))
         self.code_input = QLineEdit(self)
-        code_label = QLabel("کد")
-        submit_btn = QPushButton("ثبت")
+        code_label = QLabel(_("Code"))
+        submit_btn = QPushButton(_("Register"))
         submit_btn.clicked.connect(self._on_click_register)
         hbox.addWidget(name_label)
         hbox.addWidget(self.name_input)
@@ -265,7 +291,7 @@ class Window(QWidget):
             self.actionButtons.show()
             self.registerForm.deleteLater()
         else:
-            QMessageBox.about(self, "!", "Please provide name")
+            QMessageBox.about(self, "!", _("Please provide name"))
 
     def CreateAnswerButtons(self):
         """
@@ -277,7 +303,7 @@ class Window(QWidget):
         self.btns = []
         for i in range(2):
             for j in range(10):
-                btn = QPushButton(enToArNumb(str(10*i + j + 1)))
+                btn = QPushButton(_n(str(10*i + j + 1)))
                 btn.setMaximumWidth(30)
                 btn.clicked.connect(self._on_click_answer)
                 gridLayout.addWidget(btn, i, j)
@@ -293,12 +319,12 @@ class Window(QWidget):
         self.actionButtons = QGroupBox()
         hboxLayout = QHBoxLayout()
 
-        self.start_btn = QPushButton("شروع", self)
+        self.start_btn = QPushButton(_("Start"), self)
         self.start_btn.setMinimumHeight(40)
         self.start_btn.clicked.connect(self._start)
         hboxLayout.addWidget(self.start_btn)
 
-        self.exit_btn = QPushButton("خروج", self)
+        self.exit_btn = QPushButton(_("Exit"), self)
         self.exit_btn.setMinimumHeight(40)
         self.exit_btn.clicked.connect(self._exit)
         hboxLayout.addWidget(self.exit_btn)        
@@ -337,11 +363,11 @@ class Window(QWidget):
             user_answer = int(user_answer)
             correct_answer = self.played_numbers[-1] + self.played_numbers[-2]
             if user_answer == correct_answer:
-                self.number_label.setText("درست")
+                self.number_label.setText(_("Correct"))
                 self.results.append('C')
                 self.reaction_times.append(reaction_time)
             else:
-                self.number_label.setText("نادرست")
+                self.number_label.setText(_("Incorrect"))
                 self.results.append('I')
                 self.reaction_times.append(0)
         else:
@@ -383,7 +409,6 @@ class Window(QWidget):
             self.answer_label.setText(self.current_typed_answer)
         elif e.key() == QtCore.Qt.Key_Q and (self.current_typed_answer) \
              and (not self.answerButton_clicked):
-            print("Enter Pressed!")
             self._submit_answer(self.current_typed_answer)
             self.answerButton_clicked = True
         else:
@@ -394,7 +419,7 @@ class Window(QWidget):
             else:
                 if key_str in ['0','1','2','3','4','5','6','7','8','9'] and\
                 len(self.current_typed_answer) < 2:
-                    self.current_typed_answer += enToArNumb(key_str)
+                    self.current_typed_answer += _n(key_str)
                     self.answer_label.setText(self.current_typed_answer)
                 
     def _update_number(self,number, time_presented):
@@ -426,14 +451,14 @@ class Window(QWidget):
         if len(self.played_numbers) >= 2:
             self.allow_answer = True
         # Update the number_label text
-        self.number_label.setText(enToArNumb('%d'%number))
+        self.number_label.setText(_n('%d'%number))
     def _update_timer(self, total_time):
         """
         This function simply shows the total_time elapsed since
         the start of the trial. TimerThread takes care of measuring
         the time
         """
-        self.timer_label.setText(enToArNumb('%.1f' % total_time))
+        self.timer_label.setText(_n('%.1f' % total_time))
         
     def _finished(self):
         """
@@ -447,25 +472,24 @@ class Window(QWidget):
             return
         # Calculate correct_percent and mean_reaction_time (for correct answers that are nonzero)
         correct_percent = 100 * (self.results.count('C')/len(self.results))
-        reaction_times_array = np.array(self.reaction_times)
-        mean_reaction_time = reaction_times_array[np.nonzero(reaction_times_array)].mean()
+        mean_reaction_time = non_zero_mean(self.reaction_times)
         # Define stats to be shown in the statsgrid
-        self.stats = [('Correct Answers', self.results.count('C')),
-                         ('Incorrect Answers', self.results.count('I')),
-                         ('Not Answered', self.results.count('N')),
-                         ('Correct %', correct_percent),
-                         ('Results List', self.results),
-                         ('Reaction Times', self.reaction_times),
-                         ('Mean Reaction Time',mean_reaction_time)]
+        self.stats = [(_('Correct Answers'), self.results.count('C')),
+                         (_('Incorrect Answers'), self.results.count('I')),
+                         (_('Not Answered'), self.results.count('N')),
+                         (_('Correct %'), correct_percent),
+                         (_('Results List'), self.results),
+                         (_('Reaction Times'), self.reaction_times),
+                         (_('Mean Reaction Time'),mean_reaction_time)]
         
         # Initiate the dialog
         results_dialog = QDialog(self)
-        results_dialog.setWindowTitle("Results")
+        results_dialog.setWindowTitle(_("Results"))
         results_dialog.setGeometry(self.left, self.top, self.width, self.height)
         
         # Initialize the vertical layout container vbox and add the title
         vbox = QVBoxLayout()
-        title = QLabel("نتایج")
+        title = QLabel(_("Results"))
         title.setAlignment(QtCore.Qt.AlignTop)
         title.setFont(QtGui.QFont("Sanserif", 20)) #TODO: Change to Farsi fonts and embedd it to the .exe file
         vbox.addWidget(title)
@@ -483,8 +507,10 @@ class Window(QWidget):
 
         results_dialog.setLayout(vbox)        
         
-        # Make it RTL and show it (TODO: Support also LTR)
-        results_dialog.setLayoutDirection(QtCore.Qt.RightToLeft)
+        # Make it RTL if the language is fa
+        if LANGUAGE == "fa":
+            results_dialog.setLayoutDirection(QtCore.Qt.RightToLeft)
+        # Show the dialog #TODO: add exit button
         results_dialog.show()
         
     def _exit(self):
@@ -495,7 +521,8 @@ class Window(QWidget):
     
 if __name__ == '__main__':
     App = QApplication(sys.argv)
-    App.setLayoutDirection(QtCore.Qt.RightToLeft)
+    if LANGUAGE == "fa":
+        App.setLayoutDirection(QtCore.Qt.RightToLeft)
     window = Window()
     sys.exit(App.exec())
 
