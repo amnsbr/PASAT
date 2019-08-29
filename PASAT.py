@@ -9,7 +9,7 @@ Created on Wed Aug 28 15:56:33 2019
 
 from PyQt5.QtWidgets import QApplication, QDialog, QPushButton, QHBoxLayout,\
  QGroupBox, QVBoxLayout, QLabel, QGridLayout, QWidget, QLineEdit, QMessageBox,\
- QMainWindow, QAction
+ QMainWindow, QAction, QFormLayout, QSpinBox
 import sys, os
 from PyQt5 import QtGui
 from PyQt5 import QtCore
@@ -22,6 +22,7 @@ import gettext
 #BUG: There's a delay in showing the numbers on the screen
 #TODO: On keyPressEvent, fix the problem with Key_Enter, Key_Q is not user friendly
 #TODO: Used globals for the language change, it works but isn't a good practice!
+#TODO: Show results in table
 
 NUMBERS_PER_TRIAL = 3
 INTERVAL = 3 #seconds
@@ -243,8 +244,9 @@ class Window(QMainWindow):
 #        pauseRunAction = QAction(_("Pause"), self)
 #        runMenu.addAction(pauseRunAction)
         
-#        preferencesAction = QAction(_("Preferences"), self)
-#        optionsMenu.addAction(preferencesAction)
+        preferencesAction = QAction(_("Preferences"), self)
+        preferencesAction.triggered.connect(self.ShowPreferences)
+        optionsMenu.addAction(preferencesAction)
         languagesMenu = optionsMenu.addMenu(_("Languages"))
         faAction = QAction(_("Farsi"), self)
         if LANGUAGE == "fa":
@@ -587,6 +589,47 @@ class Window(QMainWindow):
         elif selected_language == "English":
             LANGUAGE = "en"
         App.exit(EXIT_CODE_REBOOT)
+    
+    def ShowPreferences(self):
+        self.preferences_dialog = QDialog(self)
+        self.preferences_dialog.setWindowTitle(_("Preferences"))
+        self.preferences_dialog.setGeometry(self.left, self.top, self.width, self.height)
+        self._center(self.preferences_dialog)
+        
+        vbox = QVBoxLayout()
+        
+        preferencesForm = QGroupBox(self)
+        form = QFormLayout()
+        self.numbers_per_trial_input = QSpinBox(self)
+        self.numbers_per_trial_input.setValue(NUMBERS_PER_TRIAL)
+        self.numbers_per_trial_input.setMinimum(2)
+        numbers_per_trial_label = QLabel(_("Numbers per trial"))
+        self.interval_input = QSpinBox(self)
+        self.interval_input.setValue(INTERVAL)
+        self.interval_input.setMinimum(2)
+        interval_label = QLabel(_("Interval between numbers (seconds)"))
+        form.addRow(numbers_per_trial_label, self.numbers_per_trial_input)
+        form.addRow(interval_label, self.interval_input)
+        preferencesForm.setLayout(form)
+        
+        cancel_btn = QPushButton(_("Cancel"))
+        cancel_btn.clicked.connect(self.preferences_dialog.close)
+        save_btn = QPushButton(_("Save"))
+        save_btn.clicked.connect(self._save_preferences)
+        
+        vbox.addWidget(preferencesForm)
+        vbox.addWidget(cancel_btn)
+        vbox.addWidget(save_btn)
+        self.preferences_dialog.setLayout(vbox)        
+        self.preferences_dialog.show()
+        
+    def _save_preferences(self):
+        global NUMBERS_PER_TRIAL, INTERVAL, TRIAL_LENGTH
+        NUMBERS_PER_TRIAL = int(self.numbers_per_trial_input.text())
+        INTERVAL = int(self.interval_input.text())
+        TRIAL_LENGTH = NUMBERS_PER_TRIAL * INTERVAL
+        self.preferences_dialog.close()
+        
     
     def _exit(self):
         """
