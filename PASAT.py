@@ -76,7 +76,10 @@ def non_zero_mean(lst):
         if num:
             summation += num
             count += 1
-    return summation/count
+    if count:
+        return summation/count
+    else:
+        return 0
             
 
 ### Threads ####
@@ -119,6 +122,9 @@ class PlayNumbersThread(QtCore.QThread):
             playsound(os.path.join("audio",LANGUAGE, "{:d}.wav".format(number)))
             length = time.time() - time_before_playsound
             time.sleep(INTERVAL-length)
+        # This 0 serves as a right-padding and is necessary for the last interval
+        # to be calculated when the input is via keyboard 
+        self.new_number.emit(0, time.time())
         self.finished.emit()
             
 class TimerThread(QtCore.QThread):
@@ -141,7 +147,7 @@ class TimerThread(QtCore.QThread):
         then used by Window._update_timer to draw it on the screen.
         """
         total_time = 0
-        while total_time <= TRIAL_LENGTH:
+        while total_time <= TRIAL_LENGTH-0.1:
             time.sleep(0.1)
             total_time+=0.1
             self.time_step.emit(total_time)
@@ -333,13 +339,14 @@ class Window(QMainWindow):
 #        self.label.setFont(QtGui.QFont("Sanserif", 15))
         self.code_input = QLineEdit(self)
         code_label = QLabel(_("Code"))
-        submit_btn = QPushButton(_("Register"))
-        submit_btn.clicked.connect(self._on_click_register)
+        self.submit_btn = QPushButton(_("Register"))
+        self.submit_btn.clicked.connect(self._on_click_register)
         hbox.addWidget(name_label)
         hbox.addWidget(self.name_input)
         hbox.addWidget(code_label)
         hbox.addWidget(self.code_input)
-        hbox.addWidget(submit_btn)
+        hbox.addWidget(self.submit_btn)
+        hbox.setAlignment(QtCore.Qt.AlignTop)
         self.registerForm.setLayout(hbox)
         
     def _on_click_register(self):
@@ -356,7 +363,10 @@ class Window(QMainWindow):
             self.answer_label.show()
             self.answerButtons.show()
             self.actionButtons.show()
-            self.registerForm.deleteLater()
+            #self.registerForm.deleteLater()
+            self.name_input.setEnabled(False)
+            self.code_input.setEnabled(False)
+            self.submit_btn.hide()
         else:
             QMessageBox.about(self, "!", _("Please provide name"))
 
@@ -416,6 +426,7 @@ class Window(QMainWindow):
             self.timer_thread.time_step.connect(self._update_timer)
             
             self.trial_started = True
+            self.start_btn.setEnabled(False)
         
     def _submit_answer(self,user_answer):
         """
@@ -424,7 +435,7 @@ class Window(QMainWindow):
         """
         # Reaction time is calulated as the time elapsed since the number was
         # presented till the user clicked or typed an answer
-        reaction_time = time.time()-self.time_presented
+        reaction_time = round(time.time()-self.time_presented, 1)
         if user_answer:
             # answer is a string, whether it comes from mouse or keyboard input
             user_answer = int(user_answer)
@@ -507,18 +518,19 @@ class Window(QMainWindow):
             self._submit_answer(self.current_typed_answer)
 
         # Reinitialize state variables and answer_label
-        self.current_typed_answer = ''
         self.answerButton_clicked = False
+        self.current_typed_answer = ''
         self.answer_label.setText('')
 
         # Record the time that the new number was presented
         self.time_presented = time_presented
         # Add the new number to the played_numbers list
+        # Update the number_label text
+        self.number_label.setText(_n('%d'%number))
         self.played_numbers.append(number)
         if len(self.played_numbers) >= 2:
             self.allow_answer = True
-        # Update the number_label text
-        self.number_label.setText(_n('%d'%number))
+
     def _update_timer(self, total_time):
         """
         This function simply shows the total_time elapsed since
@@ -537,6 +549,9 @@ class Window(QMainWindow):
         # to errors. Just is here to prevent this error.
         if not self.results:
             return
+        self.number_label.setText(_n("Finished"))
+        self.trial_started = False
+        
         # Calculate correct_percent and mean_reaction_time (for correct answers that are nonzero)
         correct_percent = 100 * (self.results.count('C')/len(self.results))
         mean_reaction_time = non_zero_mean(self.reaction_times)
