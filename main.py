@@ -8,149 +8,30 @@ Created on Wed Aug 28 15:56:33 2019
 """
 
 from PyQt5.QtWidgets import QApplication, QDialog, QPushButton, QHBoxLayout,\
- QGroupBox, QVBoxLayout, QLabel, QGridLayout, QWidget, QLineEdit, QMessageBox,\
+ QGroupBox, QVBoxLayout, QLabel, QGridLayout, QLineEdit, QMessageBox,\
  QMainWindow, QAction, QFormLayout, QSpinBox
-import sys, os
+import sys
 from PyQt5 import QtGui
 from PyQt5 import QtCore
-from playsound import playsound
 import random, time
-import gettext
+from helpers import redefine_gettext, non_zero_mean, center_widget
+from threads import PlayNumbersThread, TimerThread
 
 #TODO: Define sessions, and inside each session record the data in a csv file
 #TODO: Measure the first 1/3 and the last 1/3 stats separately
-#BUG: There's a delay in showing the numbers on the screen
 #TODO: On keyPressEvent, fix the problem with Key_Enter, Key_Q is not user friendly
 #TODO: Used globals for the language change, it works but isn't a good practice!
 #TODO: Show results in table
+#TODO: More comments + better organization (maybe multiple files)
+#TODO: Add test description text
 
-NUMBERS_PER_TRIAL = 3
+NUMBERS_PER_TRIAL = 10
 INTERVAL = 3 #seconds
 TRIAL_LENGTH = NUMBERS_PER_TRIAL * INTERVAL #seconds
 LANGUAGE = "en"
+_, _n = redefine_gettext(LANGUAGE)
 
 EXIT_CODE_REBOOT = -123
-
-### Helper Functions ####
-def en_to_ar_num(number_str):
-    """
-    Converts English string numbers to Arabic string numbers
-    """
-    dic = { 
-        '0':'۰', 
-        '1':'١', 
-        '2':'٢', 
-        '3':'۳', 
-        '4':'۴', 
-        '5':'۵', 
-        '6':'۶', 
-        '7':'۷', 
-        '8':'۸', 
-        '9':'۹',
-        '.':'.',
-    }
-    arnum = ''
-    for digit in str(number_str):
-        arnum += dic[digit]    
-    return arnum
-def redefine_gettext():
-    if LANGUAGE == "fa":
-        fa = gettext.translation('PASAT', localedir = 'locale', languages=['fa'])
-        fa.install()
-        _ = fa.gettext
-        _n = en_to_ar_num
-    else:
-        _ = gettext.gettext
-        # if language is not "fa", instead of english to arabic number translator function
-        # pass the gettext.gettext as _n, that does nothing.
-        _n = gettext.gettext
-    return _, _n
-_, _n = redefine_gettext()
-def non_zero_mean(lst):
-    """
-    Returns the mean of non-zero numbers of a list
-    """
-    summation = 0
-    count = 0
-    for num in lst:
-        if num:
-            summation += num
-            count += 1
-    if count:
-        return summation/count
-    else:
-        return 0
-            
-
-### Threads ####
-class PlayNumbersThread(QtCore.QThread):
-    """
-    When "Start" is clicked, this QThread class runs a thread
-    simultaneous to the main program. The only argument for this
-    class is a NUMBERS_PER_TRIAL length list of random numbers 
-    from 1 to 10, which has been constructed in Window.__init__.
-    The main objective of this class is to play the sound of each
-    number, wait for INTERVAL seconds, and do the same for all the
-    numbers in random_numbers list.
-    """
-    # Define the event of playing a new_number, which will
-    # emit two variables: the number played and the time it was played
-    # (which is used to claculate reaction time)
-    new_number = QtCore.pyqtSignal(int, float)
-    finished = QtCore.pyqtSignal()
-    def __init__(self, random_numbers, parent=None):
-        """
-        Initializes the PlayNumbersThread with random_numbers list as its 
-        only argument
-        """
-        super().__init__()
-        self.random_numbers = random_numbers
-    def run(self):
-        """
-        Overwrites QThread.run function which executes the thread. It loops
-        through the random_numbers list, tells Window._start about the number
-        that is playing and the time it was played, plays the sound of each number 
-        , (using playsound package, TODO: Use QSound), waits for 3 seconds 
-        (after adjusting for the length of the sound played) and then does 
-        the same for the next number on the list.
-        """
-        for number in self.random_numbers:
-            # Record the time that number has started playing, to calculate
-            # its length, and also to calculate reaction time
-            time_before_playsound = time.time()
-            self.new_number.emit(number, time_before_playsound)
-            playsound(os.path.join("audio",LANGUAGE, "{:d}.wav".format(number)))
-            length = time.time() - time_before_playsound
-            time.sleep(INTERVAL-length)
-        # This 0 serves as a right-padding and is necessary for the last interval
-        # to be calculated when the input is via keyboard 
-        self.new_number.emit(0, time.time())
-        self.finished.emit()
-            
-class TimerThread(QtCore.QThread):
-    """
-    When "Start" is clicked, this QThread class runs a thread
-    simultaneous to the main program. Its only job is to update
-    the Window.timer_label via Window._update_timer, and has
-    nothing to do with reaction times and dynamics of the program.
-    In fact, it has no communication means with PlayNumbersThread.
-    QTimer was an alternative, but counting time in a thread is more
-    accurate (is it?!).
-    """
-    # Each 0.1 seconds, TimeThread emits the time_step signal,
-    # which carries the total_time passed to be shown on Window.timer_label
-    time_step = QtCore.pyqtSignal(float)
-    def run(self):
-        """
-        Runs the TimerThread. Until reaching the TRIAL_LENGTH, every 0.01 seconds
-        sends a signal to Window._start carrying the total time spent. Which is
-        then used by Window._update_timer to draw it on the screen.
-        """
-        total_time = 0
-        while total_time <= TRIAL_LENGTH-0.1:
-            time.sleep(0.1)
-            total_time+=0.1
-            self.time_step.emit(total_time)
         
 #### Main Window ####
 class Window(QMainWindow):
@@ -170,29 +51,26 @@ class Window(QMainWindow):
         # Using super() initilize an empty window, and then populate it
         # using self.InitWindow()
         super().__init__()
-        self.title = "PASAT"
-        self.top = 100 #TODO: Make the coordinates better
+        self.title = "Paced Auditoy Serial Addition Test"
+        self.top = 100
         self.left = 100
-        self.width = 600
+        self.width = 800
         self.height = 600
+        # this is necessary for changing the language from the menu. every time
+        # language is changed, __init__ is called again, and _ and _n need to be
+        # redefined
         global _, _n
-        _, _n = redefine_gettext()
+        _, _n = redefine_gettext(LANGUAGE)
 
         # Set the title and geometry of the window
         ##self.setWindowIcon(QtGui.QIcon("icon.png"))
         self.setWindowTitle(self.title)
         self.setGeometry(self.left, self.top, self.width, self.height)
-        self._center()
+        center_widget(App, self)
 
         self.CreateMenu()
         self.InitWindow()
-        
-        # Create a list of random_numbers with the length of NUMBERS_PER_TRIAL. The range
-        # of random numbers is [1, 10], so the possible answers are [2, 20]
-        self.random_numbers = []
-        for dummy in range(NUMBERS_PER_TRIAL):
-            self.random_numbers.append(random.randint(1,10))
-        
+                
         self.player_name = ''
         # Initilize answerButton_clicked, so that when during an INTERVAL that
         # a number has been played, user cannot click on more than one answers,
@@ -217,14 +95,6 @@ class Window(QMainWindow):
         # number, it's only here to prevent undefined error.
         self.time_presented = time.time()
         
-    def _center(self, widget=None):
-        if not widget:
-            widget = self
-        frameGm = widget.frameGeometry()
-        screen = App.desktop().screenNumber(QApplication.desktop().cursor().pos())
-        centerPoint = App.desktop().screenGeometry(screen).center()
-        frameGm.moveCenter(centerPoint)
-        widget.move(frameGm.topLeft())
  
     def CreateMenu(self):
         mainMenu = self.menuBar()
@@ -266,10 +136,12 @@ class Window(QMainWindow):
         languagesMenu.addAction(enAction)
         
         aboutAction = QAction(_("About"), self)
+        aboutAction.triggered.connect(self._show_about)
         helpMenu.addAction(aboutAction)
 #        helpAction = QAction(_("How it woks"), self)
 #        helpMenu.addAction(helpAction)
-         
+
+### Registration view and Test view ###         
     def InitWindow(self):
         """
         Adds elements to the Window. Inside the Window is the vbox. And each
@@ -349,27 +221,6 @@ class Window(QMainWindow):
         hbox.setAlignment(QtCore.Qt.AlignTop)
         self.registerForm.setLayout(hbox)
         
-    def _on_click_register(self):
-        """
-        Handles the registration form data. Checks if a name
-        is provided (and shows a message if none is provided),
-        assigns self.player_name, deletes the registration form
-        and shows other elements that were hidden.
-        """
-        if self.name_input.text():
-            self.player_name = self.name_input.text()
-            self.number_label.show()
-            self.timer_label.show()
-            self.answer_label.show()
-            self.answerButtons.show()
-            self.actionButtons.show()
-            #self.registerForm.deleteLater()
-            self.name_input.setEnabled(False)
-            self.code_input.setEnabled(False)
-            self.submit_btn.hide()
-        else:
-            QMessageBox.about(self, "!", _("Please provide name"))
-
     def CreateAnswerButtons(self):
         """
         Creates a 2x10 grid of numbers from [1-20] which are QPushButtons and
@@ -381,7 +232,7 @@ class Window(QMainWindow):
         for i in range(2):
             for j in range(10):
                 btn = QPushButton(_n(str(10*i + j + 1)))
-                btn.setMaximumWidth(30)
+                btn.setMaximumWidth(self.width/12)
                 btn.clicked.connect(self._on_click_answer)
                 gridLayout.addWidget(btn, i, j)
                 self.btns.append(btn)
@@ -407,7 +258,105 @@ class Window(QMainWindow):
         hboxLayout.addWidget(self.exit_btn)        
         
         self.actionButtons.setLayout(hboxLayout)
+
+### Results view ####    
+    def ShowResultsDialog(self):
+        """
+        Shows the results in a new dialog. Triggered by _finished event handler.
+        """
+        # Initiate the dialog
+        results_dialog = QDialog(self)
+        results_dialog.setWindowTitle(_("Results"))
+        results_dialog.setGeometry(self.left, self.top, self.width*0.75, self.height*0.75)
+        center_widget(App, results_dialog)
         
+        # Initialize the vertical layout container vbox and add the title
+        vbox = QVBoxLayout()
+        title = QLabel(_("Results"))
+        title.setAlignment(QtCore.Qt.AlignTop)
+        title.setFont(QtGui.QFont("Sanserif", 20)) #TODO: Change to Farsi fonts and embedd it to the .exe file
+        vbox.addWidget(title)
+        
+        # Add the stats in a statsgrid
+        statsbox = QGroupBox()
+        statsgrid = QGridLayout()
+        self.btns = []
+        for i in range(len(self.stats)):
+            for j in range(2):
+                label = QLabel(str(self.stats[i][j]))
+                statsgrid.addWidget(label, i, j)
+        statsbox.setLayout(statsgrid)
+        vbox.addWidget(statsbox)        
+
+        results_dialog.setLayout(vbox)        
+        
+        # Make it RTL if the language is fa
+        if LANGUAGE == "fa":
+            results_dialog.setLayoutDirection(QtCore.Qt.RightToLeft)
+        # Show the dialog #TODO: add exit button
+        results_dialog.show()
+
+### Preferences view ####
+    def ShowPreferences(self):
+        """
+        Shows the preferences dialog. Triggered by 'Options -> Preferences'
+        """
+        self.preferences_dialog = QDialog(self)
+        self.preferences_dialog.setWindowTitle(_("Preferences"))
+        self.preferences_dialog.setGeometry(self.left, self.top, self.width*0.75, self.height*0.75)
+        center_widget(App, self.preferences_dialog)
+        
+        vbox = QVBoxLayout()
+        
+        preferencesForm = QGroupBox(self)
+        form = QFormLayout()
+        self.numbers_per_trial_input = QSpinBox(self)
+        self.numbers_per_trial_input.setValue(NUMBERS_PER_TRIAL)
+        self.numbers_per_trial_input.setMinimum(2)
+        numbers_per_trial_label = QLabel(_("Numbers per trial"))
+        self.interval_input = QSpinBox(self)
+        self.interval_input.setValue(INTERVAL)
+        self.interval_input.setMinimum(2)
+        interval_label = QLabel(_("Interval between numbers (seconds)"))
+        form.addRow(numbers_per_trial_label, self.numbers_per_trial_input)
+        form.addRow(interval_label, self.interval_input)
+        preferencesForm.setLayout(form)
+        
+        cancel_btn = QPushButton(_("Cancel"))
+        cancel_btn.clicked.connect(self.preferences_dialog.close)
+        save_btn = QPushButton(_("Save"))
+        save_btn.clicked.connect(self._save_preferences)
+        
+        vbox.addWidget(preferencesForm)
+        vbox.addWidget(cancel_btn)
+        vbox.addWidget(save_btn)
+        self.preferences_dialog.setLayout(vbox)        
+        self.preferences_dialog.show()
+
+### User Input Event Handles ###
+# Sorted by appearance
+    def _on_click_register(self):
+        """
+        Handles the registration form data. Checks if a name
+        is provided (and shows a message if none is provided),
+        assigns self.player_name, deletes the registration form
+        and shows other elements that were hidden.
+        """
+        if self.name_input.text():
+            self.player_name = self.name_input.text()
+            self.number_label.show()
+            self.timer_label.show()
+            self.answer_label.show()
+            self.answerButtons.show()
+            self.actionButtons.show()
+            #self.registerForm.deleteLater()
+            self.name_input.setEnabled(False)
+            self.code_input.setEnabled(False)
+            self.submit_btn.hide()
+        else:
+            QMessageBox.about(self, "!", _("Please provide name"))
+        
+
     def _start(self):
         """
         By clicking start, if it has not already started, the task begins. 
@@ -416,42 +365,23 @@ class Window(QMainWindow):
         the random_numbers one by one, and TimerThread which updates the timer_label.
         """
         if not self.trial_started:
-            self.audio_thread = PlayNumbersThread(self.random_numbers)
+            # Create a list of random_numbers with the length of NUMBERS_PER_TRIAL. The range
+            # of random numbers is [1, 10], so the possible answers are [2, 20]
+            self.random_numbers = []
+            for dummy in range(NUMBERS_PER_TRIAL):
+                self.random_numbers.append(random.randint(1,10))
+
+            self.audio_thread = PlayNumbersThread(self.random_numbers, INTERVAL, LANGUAGE)
             self.audio_thread.start()
             self.audio_thread.new_number.connect(self._update_number)
             self.audio_thread.finished.connect(self._finished)
             
-            self.timer_thread = TimerThread()
+            self.timer_thread = TimerThread(TRIAL_LENGTH)
             self.timer_thread.start()
             self.timer_thread.time_step.connect(self._update_timer)
             
             self.trial_started = True
             self.start_btn.setEnabled(False)
-        
-    def _submit_answer(self,user_answer):
-        """
-        This is where answers are recorded and scored. TODO: Allow answer only if at least
-        two numbers have been presented.
-        """
-        # Reaction time is calulated as the time elapsed since the number was
-        # presented till the user clicked or typed an answer
-        reaction_time = round(time.time()-self.time_presented, 1)
-        if user_answer:
-            # answer is a string, whether it comes from mouse or keyboard input
-            user_answer = int(user_answer)
-            correct_answer = self.played_numbers[-1] + self.played_numbers[-2]
-            if user_answer == correct_answer:
-                self.number_label.setText(_("Correct"))
-                self.results.append('C')
-                self.reaction_times.append(reaction_time)
-            else:
-                self.number_label.setText(_("Incorrect"))
-                self.results.append('I')
-                self.reaction_times.append(0)
-        else:
-            self.results.append('N')
-            self.reaction_times.append(0)
-
         
     def _on_click_answer(self):
         """
@@ -500,7 +430,8 @@ class Window(QMainWindow):
                     self.current_typed_answer += _n(key_str)
                     self.answer_label.setText(self.current_typed_answer)
                 
-    def _update_number(self,number, time_presented):
+### Threads event handlers ###
+    def _update_number(self, number, time_presented):
         """
         This function is called whenever a new number is presented by
         PlayNumbersThread (message is ralayed in the _start). First,
@@ -538,6 +469,31 @@ class Window(QMainWindow):
         the time
         """
         self.timer_label.setText(_n('%.1f' % total_time))
+
+### Test dynamics event handlers ###
+    def _submit_answer(self,user_answer):
+        """
+        This is where answers are recorded and scored. TODO: Allow answer only if at least
+        two numbers have been presented.
+        """
+        # Reaction time is calulated as the time elapsed since the number was
+        # presented till the user clicked or typed an answer
+        reaction_time = round(time.time()-self.time_presented, 1)
+        if user_answer:
+            # answer is a string, whether it comes from mouse or keyboard input
+            user_answer = int(user_answer)
+            correct_answer = self.played_numbers[-1] + self.played_numbers[-2]
+            if user_answer == correct_answer:
+                self.number_label.setText(_("Correct"))
+                self.results.append('C')
+                self.reaction_times.append(reaction_time)
+            else:
+                self.number_label.setText(_("Incorrect"))
+                self.results.append('I')
+                self.reaction_times.append(0)
+        else:
+            self.results.append('N')
+            self.reaction_times.append(0)
         
     def _finished(self):
         """
@@ -549,7 +505,7 @@ class Window(QMainWindow):
         # to errors. Just is here to prevent this error.
         if not self.results:
             return
-        self.number_label.setText(_n("Finished"))
+        self.number_label.setText(_("Finished"))
         self.trial_started = False
         
         # Calculate correct_percent and mean_reaction_time (for correct answers that are nonzero)
@@ -564,38 +520,9 @@ class Window(QMainWindow):
                          (_('Reaction Times'), self.reaction_times),
                          (_('Mean Reaction Time'),mean_reaction_time)]
         
-        # Initiate the dialog
-        results_dialog = QDialog(self)
-        results_dialog.setWindowTitle(_("Results"))
-        results_dialog.setGeometry(self.left, self.top, self.width, self.height)
-        self._center(results_dialog)
-        
-        # Initialize the vertical layout container vbox and add the title
-        vbox = QVBoxLayout()
-        title = QLabel(_("Results"))
-        title.setAlignment(QtCore.Qt.AlignTop)
-        title.setFont(QtGui.QFont("Sanserif", 20)) #TODO: Change to Farsi fonts and embedd it to the .exe file
-        vbox.addWidget(title)
-        
-        # Add the stats in a statsgrid
-        statsbox = QGroupBox()
-        statsgrid = QGridLayout()
-        self.btns = []
-        for i in range(len(self.stats)):
-            for j in range(2):
-                label = QLabel(str(self.stats[i][j]))
-                statsgrid.addWidget(label, i, j)
-        statsbox.setLayout(statsgrid)
-        vbox.addWidget(statsbox)        
+        self.ShowResultsDialog()
 
-        results_dialog.setLayout(vbox)        
-        
-        # Make it RTL if the language is fa
-        if LANGUAGE == "fa":
-            results_dialog.setLayoutDirection(QtCore.Qt.RightToLeft)
-        # Show the dialog #TODO: add exit button
-        results_dialog.show()
-    
+### Menu actions event handlers (except views) ###        
     def _change_language(self):
         global LANGUAGE
         selected_language = self.sender().text()
@@ -604,40 +531,7 @@ class Window(QMainWindow):
         elif selected_language == "English":
             LANGUAGE = "en"
         App.exit(EXIT_CODE_REBOOT)
-    
-    def ShowPreferences(self):
-        self.preferences_dialog = QDialog(self)
-        self.preferences_dialog.setWindowTitle(_("Preferences"))
-        self.preferences_dialog.setGeometry(self.left, self.top, self.width, self.height)
-        self._center(self.preferences_dialog)
-        
-        vbox = QVBoxLayout()
-        
-        preferencesForm = QGroupBox(self)
-        form = QFormLayout()
-        self.numbers_per_trial_input = QSpinBox(self)
-        self.numbers_per_trial_input.setValue(NUMBERS_PER_TRIAL)
-        self.numbers_per_trial_input.setMinimum(2)
-        numbers_per_trial_label = QLabel(_("Numbers per trial"))
-        self.interval_input = QSpinBox(self)
-        self.interval_input.setValue(INTERVAL)
-        self.interval_input.setMinimum(2)
-        interval_label = QLabel(_("Interval between numbers (seconds)"))
-        form.addRow(numbers_per_trial_label, self.numbers_per_trial_input)
-        form.addRow(interval_label, self.interval_input)
-        preferencesForm.setLayout(form)
-        
-        cancel_btn = QPushButton(_("Cancel"))
-        cancel_btn.clicked.connect(self.preferences_dialog.close)
-        save_btn = QPushButton(_("Save"))
-        save_btn.clicked.connect(self._save_preferences)
-        
-        vbox.addWidget(preferencesForm)
-        vbox.addWidget(cancel_btn)
-        vbox.addWidget(save_btn)
-        self.preferences_dialog.setLayout(vbox)        
-        self.preferences_dialog.show()
-        
+            
     def _save_preferences(self):
         global NUMBERS_PER_TRIAL, INTERVAL, TRIAL_LENGTH
         NUMBERS_PER_TRIAL = int(self.numbers_per_trial_input.text())
@@ -645,7 +539,12 @@ class Window(QMainWindow):
         TRIAL_LENGTH = NUMBERS_PER_TRIAL * INTERVAL
         self.preferences_dialog.close()
         
-    
+    def _show_about(self):
+        QMessageBox.about(self, "About", _("""
+        <h2>Paced Auditory Serial Adition Test (PASAT)</h2>
+        Developed by Amin Saberi (amnsbr@gmail.com)
+        2019.08"""))
+            
     def _exit(self):
         """
         Exits the program
@@ -653,6 +552,7 @@ class Window(QMainWindow):
         sys.exit()
     
 if __name__ == '__main__':
+    # currentExitCode is necessary for changing languages in Gui, do not know the dynamics
     currentExitCode = EXIT_CODE_REBOOT
     while currentExitCode == EXIT_CODE_REBOOT:
         App = QApplication(sys.argv)

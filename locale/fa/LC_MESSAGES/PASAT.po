@@ -5,8 +5,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: PASAT\n"
-"POT-Creation-Date: 2019-08-29 12:18+0430\n"
-"PO-Revision-Date: 2019-08-29 12:25+0330\n"
+"POT-Creation-Date: 2019-08-29 18:13+0430\n"
+"PO-Revision-Date: 2019-08-29 18:17+0330\n"
 "Last-Translator: Amin Saberi <amnsbr@gmail.com>\n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
@@ -15,66 +15,118 @@ msgstr ""
 "Generated-By: pygettext.py 1.5\n"
 "X-Generator: Poedit 1.5.7\n"
 
-#: PASAT.py:255
-msgid "Name"
-msgstr "نام"
+#: PASAT.py:100
+msgid "Session"
+msgstr "جلسه"
 
-#: PASAT.py:258
-msgid "Code"
-msgstr "کد"
+#: PASAT.py:102
+msgid "Options"
+msgstr "تنظیمات"
 
-#: PASAT.py:259
-msgid "Register"
-msgstr "ثبت"
+#: PASAT.py:103
+msgid "Help"
+msgstr "راهنما"
 
-#: PASAT.py:284
-msgid "Please provide name"
-msgstr "لطفا نام خود را وارد کنید."
-
-#: PASAT.py:312
-msgid "Start"
-msgstr "شروع"
-
-#: PASAT.py:317
+#: PASAT.py:111 PASAT.py:253
 msgid "Exit"
 msgstr "خروج"
 
-#: PASAT.py:356
+#: PASAT.py:122 PASAT.py:303
+msgid "Preferences"
+msgstr "پیش‌فرض‌ها"
+
+#: PASAT.py:125
+msgid "Languages"
+msgstr "زبان‌ها"
+
+#: PASAT.py:126
+msgid "Farsi"
+msgstr "فارسی"
+
+#: PASAT.py:131
+msgid "English"
+msgstr "انگلیسی"
+
+#: PASAT.py:137
+msgid "About"
+msgstr "درباره"
+
+#: PASAT.py:208
+msgid "Name"
+msgstr "نام"
+
+#: PASAT.py:211
+msgid "Code"
+msgstr "کد"
+
+#: PASAT.py:212
+msgid "Register"
+msgstr "ثبت"
+
+#: PASAT.py:248
+msgid "Start"
+msgstr "شروع"
+
+#: PASAT.py:267 PASAT.py:273
+msgid "Results"
+msgstr "نتایج"
+
+#: PASAT.py:314
+msgid "Numbers per trial"
+msgstr "تعداد اعداد در هر نوبت"
+
+#: PASAT.py:318
+msgid "Interval between numbers (seconds)"
+msgstr "فاصله بین اعداد (ثانیه)"
+
+#: PASAT.py:323
+msgid "Cancel"
+msgstr "لغو"
+
+#: PASAT.py:325
+msgid "Save"
+msgstr "ذخیره"
+
+#: PASAT.py:355
+msgid "Please provide name"
+msgstr "لطفا نام خود را وارد کنید."
+
+#: PASAT.py:485
 msgid "Correct"
 msgstr "درست"
 
-#: PASAT.py:360
+#: PASAT.py:489
 msgid "Incorrect"
 msgstr "نادرست"
 
-#: PASAT.py:467
+#: PASAT.py:506
+msgid "Finished"
+msgstr "پایان"
+
+#: PASAT.py:513
 msgid "Correct Answers"
-msgstr "پاسخ‌های درست"
+msgstr "تعداد پاسخ‌های درست"
 
-#: PASAT.py:468
+#: PASAT.py:514
 msgid "Incorrect Answers"
-msgstr "پاسخ‌های نادرست"
+msgstr "تعداد پاسخ‌های نادرست"
 
-#: PASAT.py:469
+#: PASAT.py:515
 msgid "Not Answered"
-msgstr "پاسخ داده نشده"
+msgstr "تعداد بدون پاسخ"
 
-#: PASAT.py:470
+#: PASAT.py:516
 msgid "Correct %"
 msgstr "درصد پاسخ‌های درست"
 
-#: PASAT.py:471
+#: PASAT.py:517
 msgid "Results List"
 msgstr "لیست نتایج"
 
-#: PASAT.py:472
+#: PASAT.py:518
 msgid "Reaction Times"
-msgstr "زمان‌های پاسخ"
+msgstr "لیست زمان‌های پاسخ"
 
-#: PASAT.py:473
+#: PASAT.py:519
 msgid "Mean Reaction Time"
 msgstr "میانگین زمان پاسخ"
-
-#: PASAT.py:477 PASAT.py:482
-msgid "Results"
-msgstr "نتایج"
