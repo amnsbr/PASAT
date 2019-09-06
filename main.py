@@ -9,13 +9,13 @@ Created on Wed Aug 28 15:56:33 2019
 
 from PyQt5.QtWidgets import QApplication, QDialog, QPushButton, QHBoxLayout,\
  QGroupBox, QVBoxLayout, QLabel, QGridLayout, QLineEdit, QMessageBox,\
- QMainWindow, QAction, QFormLayout, QSpinBox
+ QMainWindow, QAction, QFormLayout, QSpinBox, QCheckBox
 import sys
 from PyQt5 import QtGui
 from PyQt5 import QtCore
 import random, time
 from helpers import redefine_gettext, non_zero_mean, center_widget
-from threads import PlayNumbersThread, TimerThread, resource_path
+from threads import PlayNumbersThread, PlayDemoThread, TimerThread, resource_path
 
 #TODO: Define sessions, and inside each session record the data in a csv file
 #TODO: Measure the first 1/3 and the last 1/3 stats separately
@@ -26,6 +26,7 @@ from threads import PlayNumbersThread, TimerThread, resource_path
 #TODO: Add test description text
 
 NUMBERS_PER_TRIAL = 10
+PAIRS_IN_DEMO = 10
 INTERVAL = 3 #seconds
 TRIAL_LENGTH = NUMBERS_PER_TRIAL * INTERVAL #seconds
 LANGUAGE = "en"
@@ -72,6 +73,7 @@ class Window(QMainWindow):
         self.InitWindow()
                 
         self.player_name = ''
+        self.player_code = ''
         # Initilize answerButton_clicked, so that when during an INTERVAL that
         # a number has been played, user cannot click on more than one answers,
         # and also cannot use keyboard to type the answer
@@ -86,11 +88,18 @@ class Window(QMainWindow):
         # Record if the trial has been started, so clicking start afterwards wouldn't
         # do anything.
         self.trial_started = False
+        self.demo_started = False
+        self.mode = ''
+        # By default, show the demo. Can change it in the preferences.
+        self.show_demo_on = True
         # Create a list to store the numbers that have been played so far
         self.played_numbers = []
+        self.current_pair = ()
         # Keep track of reaction_times and "C" (correct)/"I" (incorrect)/"N" (not answered)
         self.reaction_times = []
         self.results = []
+        self.demo_reaction_times = []
+        self.demo_results = []
         # Initialize time_presented. This is not the time_presented for the first
         # number, it's only here to prevent undefined error.
         self.time_presented = time.time()
@@ -251,6 +260,11 @@ class Window(QMainWindow):
         self.start_btn.setMinimumHeight(40)
         self.start_btn.clicked.connect(self._start)
         hboxLayout.addWidget(self.start_btn)
+        
+        self.demo_btn = QPushButton(_("Demo"), self)
+        self.demo_btn.setMinimumHeight(40)
+        self.demo_btn.clicked.connect(self._start_demo)
+        hboxLayout.addWidget(self.demo_btn)
 
         self.exit_btn = QPushButton(_("Exit"), self)
         self.exit_btn.setMinimumHeight(40)
@@ -266,13 +280,19 @@ class Window(QMainWindow):
         """
         # Initiate the dialog
         results_dialog = QDialog(self)
-        results_dialog.setWindowTitle(_("Results"))
+        if self.mode == 'PASAT':
+            results_dialog.setWindowTitle(_("Results"))
+        elif self.mode == 'Demo':
+            results_dialog.setWindowTitle(_("Demo Results"))            
         results_dialog.setGeometry(self.left, self.top, self.width*0.75, self.height*0.75)
         center_widget(App, results_dialog)
         
         # Initialize the vertical layout container vbox and add the title
         vbox = QVBoxLayout()
-        title = QLabel(_("Results"))
+        if self.mode == 'PASAT':    
+            title = QLabel(_("Results"))
+        elif self.mode == 'Demo':
+            title = QLabel(_("Demo Results"))
         title.setAlignment(QtCore.Qt.AlignTop)
         title.setFont(QtGui.QFont("Sanserif", 20)) #TODO: Change to Farsi fonts and embedd it to the .exe file
         vbox.addWidget(title)
@@ -280,10 +300,14 @@ class Window(QMainWindow):
         # Add the stats in a statsgrid
         statsbox = QGroupBox()
         statsgrid = QGridLayout()
+        if self.mode == 'PASAT':
+            stats = self.stats
+        elif self.mode == 'Demo':
+            stats = self.demo_stats
         self.btns = []
-        for i in range(len(self.stats)):
+        for i in range(len(stats)):
             for j in range(2):
-                label = QLabel(str(self.stats[i][j]))
+                label = QLabel(str(stats[i][j]))
                 statsgrid.addWidget(label, i, j)
         statsbox.setLayout(statsgrid)
         vbox.addWidget(statsbox)        
@@ -318,8 +342,17 @@ class Window(QMainWindow):
         self.interval_input.setValue(INTERVAL)
         self.interval_input.setMinimum(2)
         interval_label = QLabel(_("Interval between numbers (seconds)"))
+        self.show_demo_input = QCheckBox()
+        self.show_demo_input.setChecked(self.show_demo_on)
+        show_demo_label = QLabel(_("Show demo"))
+        self.pairs_in_demo_input = QSpinBox(self)
+        self.pairs_in_demo_input.setValue(PAIRS_IN_DEMO)
+        self.pairs_in_demo_input.setMinimum(2)
+        pairs_in_demo_label = QLabel(_("Number of pairs in demo"))
         form.addRow(numbers_per_trial_label, self.numbers_per_trial_input)
         form.addRow(interval_label, self.interval_input)
+        form.addRow(show_demo_label, self.show_demo_input)
+        form.addRow(pairs_in_demo_label, self.pairs_in_demo_input)
         preferencesForm.setLayout(form)
         
         cancel_btn = QPushButton(_("Cancel"))
@@ -342,8 +375,9 @@ class Window(QMainWindow):
         assigns self.player_name, deletes the registration form
         and shows other elements that were hidden.
         """
-        if self.name_input.text():
+        if self.code_input.text():
             self.player_name = self.name_input.text()
+            self.player_code = self.code_input.text()
             self.number_label.show()
             self.timer_label.show()
             self.answer_label.show()
@@ -354,8 +388,27 @@ class Window(QMainWindow):
             self.code_input.setEnabled(False)
             self.submit_btn.hide()
         else:
-            QMessageBox.about(self, "!", _("Please provide name"))
-        
+            QMessageBox.about(self, "!", _("Please provide the code"))
+
+    def _start_demo(self):
+        if not (self.trial_started | self.demo_started):
+            self.demo_pairs = []
+            for dummy in range(PAIRS_IN_DEMO):
+                self.demo_pairs.append((random.randint(1,10), random.randint(1,10)))
+            self.demo_thread = PlayDemoThread(self.demo_pairs, INTERVAL)
+            self.demo_thread.start()
+            self.demo_thread.new_pair.connect(self._update_demo_pair)
+            self.demo_thread.finished.connect(self._demo_finished)
+            
+            self.allow_answer = True
+            self.timer_thread = TimerThread(TRIAL_LENGTH)
+            self.timer_thread.start()
+            self.timer_thread.time_step.connect(self._update_timer)
+            
+            self.demo_started = True
+            self.mode = 'Demo'
+            self.demo_btn.setEnabled(False)
+            self.start_btn.setEnabled(False)            
 
     def _start(self):
         """
@@ -381,6 +434,7 @@ class Window(QMainWindow):
             self.timer_thread.time_step.connect(self._update_timer)
             
             self.trial_started = True
+            self.mode = 'PASAT'
             self.start_btn.setEnabled(False)
         
     def _on_click_answer(self):
@@ -396,7 +450,10 @@ class Window(QMainWindow):
         if not self.answerButton_clicked:
             btn = self.sender()
             self.answerButton_clicked = True
-            self._submit_answer(btn.text())
+            if self.mode == 'PASAT':
+                self._submit_answer(btn.text())
+            elif self.mode == 'Demo':
+                self._submit_demo_answer(btn.text())
         
     def keyPressEvent(self, e):
         """
@@ -431,6 +488,19 @@ class Window(QMainWindow):
                     self.answer_label.setText(self.current_typed_answer)
                 
 ### Threads event handlers ###
+    def _update_demo_pair(self, pair, time_presented):
+        if not self.answerButton_clicked:
+            self._submit_demo_answer(self.current_typed_answer)
+        
+        self.answerButton_clicked = False
+        self.current_typed_answer = ''
+        self.answer_label.setText('')
+
+        self.time_presented = time_presented
+
+        self.number_label.setText(_n(str(pair[0])) + ' + ' + _n(str(pair[1])))
+        self.current_pair = pair
+                    
     def _update_number(self, number, time_presented):
         """
         This function is called whenever a new number is presented by
@@ -471,6 +541,25 @@ class Window(QMainWindow):
         self.timer_label.setText(_n('%.1f' % total_time))
 
 ### Test dynamics event handlers ###
+    def _submit_demo_answer(self, user_answer):
+        reaction_time = round(time.time()-self.time_presented, 1)
+        if user_answer:
+            # answer is a string, whether it comes from mouse or keyboard input
+            user_answer = int(user_answer)
+            correct_answer = self.current_pair[0] + self.current_pair[1]
+            if user_answer == correct_answer:
+                self.number_label.setText(_("Correct"))
+                self.demo_results.append('C')
+                self.demo_reaction_times.append(reaction_time)
+            else:
+                self.number_label.setText(_("Incorrect"))
+                self.demo_results.append('I')
+                self.demo_reaction_times.append(0)
+        else:
+            self.demo_results.append('N')
+            self.demo_reaction_times.append(0)
+
+        
     def _submit_answer(self,user_answer):
         """
         This is where answers are recorded and scored. TODO: Allow answer only if at least
@@ -494,6 +583,27 @@ class Window(QMainWindow):
         else:
             self.results.append('N')
             self.reaction_times.append(0)
+
+    def _demo_finished(self):
+        if not self.demo_results:
+            return
+        self.number_label.setText(_("Demo Finished"))
+        self.demo_started = False
+        correct_percent = 100 * (self.demo_results.count('C')/len(self.demo_results))
+        mean_reaction_time = non_zero_mean(self.demo_reaction_times)
+        # Define stats to be shown in the statsgrid
+        self.demo_stats = [(_('Correct Answers'), self.demo_results.count('C')),
+                         (_('Incorrect Answers'), self.demo_results.count('I')),
+                         (_('Not Answered'), self.demo_results.count('N')),
+                         (_('Correct %'), correct_percent),
+                         (_('Results List'), self.demo_results),
+                         (_('Reaction Times'), self.demo_reaction_times),
+                         (_('Mean Reaction Time'),mean_reaction_time)]
+        
+        self.ShowResultsDialog()
+        self.demo_btn.setEnabled(True)
+        self.start_btn.setEnabled(True)
+        
         
     def _finished(self):
         """
@@ -536,7 +646,14 @@ class Window(QMainWindow):
         global NUMBERS_PER_TRIAL, INTERVAL, TRIAL_LENGTH
         NUMBERS_PER_TRIAL = int(self.numbers_per_trial_input.text())
         INTERVAL = int(self.interval_input.text())
+        PAIRS_IN_DEMO = int(self.pairs_in_demo_input.text())
         TRIAL_LENGTH = NUMBERS_PER_TRIAL * INTERVAL
+        if self.show_demo_input.isChecked():
+            self.demo_btn.show()
+            self.show_demo_on = True
+        else:
+            self.demo_btn.hide()
+            self.show_demo_on = False
         self.preferences_dialog.close()
         
     def _show_about(self):

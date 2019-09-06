@@ -66,6 +66,49 @@ class PlayNumbersThread(QtCore.QThread):
         # to be calculated when the input is via keyboard 
         self.new_number.emit(0, time.time())
         self.finished.emit()
+
+class PlayDemoThread(QtCore.QThread):
+    """
+    When "Start" is clicked, this QThread class runs a thread
+    simultaneous to the main program. The only argument for this
+    class is a NUMBERS_PER_TRIAL length list of random numbers 
+    from 1 to 10, which has been constructed in Window.__init__.
+    The main objective of this class is to play the sound of each
+    number, wait for INTERVAL seconds, and do the same for all the
+    numbers in random_numbers list.
+    """
+    # Define the event of playing a new_number, which will
+    # emit two variables: the number played and the time it was played
+    # (which is used to claculate reaction time)
+    new_pair = QtCore.pyqtSignal(tuple, float)
+    finished = QtCore.pyqtSignal()
+    def __init__(self, demo_pairs, interval, parent=None):
+        """
+        Initializes the PlayNumbersThread with random_numbers (list), interval (int)
+        and language ("en"/"fa") as its arguments 
+        """
+        super().__init__()
+        self.demo_pairs = demo_pairs
+        self.interval = interval
+    def run(self):
+        """
+        Overwrites QThread.run function which executes the thread. It loops
+        through the random_numbers list, tells Window._start about the number
+        that is playing and the time it was played, plays the sound of each number 
+        , (using playsound package, TODO: Use QSound), waits for 3 seconds 
+        (after adjusting for the length of the sound played) and then does 
+        the same for the next number on the list.
+        """
+        for pair in self.demo_pairs:
+            # Record the time that number has started playing, to calculate
+            # its length, and also to calculate reaction time
+            time_before_playsound = time.time()
+            self.new_pair.emit(pair, time_before_playsound)
+            time.sleep(self.interval)
+        # This 0 serves as a right-padding and is necessary for the last interval
+        # to be calculated when the input is via keyboard 
+        self.new_pair.emit((0,0), time.time())
+        self.finished.emit()
             
 class TimerThread(QtCore.QThread):
     """
