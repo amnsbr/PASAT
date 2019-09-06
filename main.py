@@ -29,6 +29,7 @@ NUMBERS_PER_TRIAL = 10
 PAIRS_IN_DEMO = 10
 INTERVAL = 3 #seconds
 TRIAL_LENGTH = NUMBERS_PER_TRIAL * INTERVAL #seconds
+AUTOSAVE = True
 LANGUAGE = "en"
 _, _n = redefine_gettext(LANGUAGE)
 
@@ -276,7 +277,8 @@ class Window(QMainWindow):
 ### Results view ####    
     def ShowResultsDialog(self):
         """
-        Shows the results in a new dialog. Triggered by _finished event handler.
+        Shows the results of PASAT or demo in a new dialog. Triggered by 
+        _finished or _demo_finished event handlers.
         """
         # Initiate the dialog
         results_dialog = QDialog(self)
@@ -300,14 +302,10 @@ class Window(QMainWindow):
         # Add the stats in a statsgrid
         statsbox = QGroupBox()
         statsgrid = QGridLayout()
-        if self.mode == 'PASAT':
-            stats = self.stats
-        elif self.mode == 'Demo':
-            stats = self.demo_stats
         self.btns = []
-        for i in range(len(stats)):
+        for i in range(len(self.stats)):
             for j in range(2):
-                label = QLabel(str(stats[i][j]))
+                label = QLabel(str(self.stats[i][j]))
                 statsgrid.addWidget(label, i, j)
         statsbox.setLayout(statsgrid)
         vbox.addWidget(statsbox)        
@@ -391,21 +389,34 @@ class Window(QMainWindow):
             QMessageBox.about(self, "!", _("Please provide the code"))
 
     def _start_demo(self):
+        """
+        By clicking demo button, if it has not already started, the task begins. 
+        This functions initializes, runs and talks with two simultaneous 
+        (and independent) threads: PlayPairsThread which shows the pairs of 
+        random_numbers one by one (e.g. 2 + 5), and TimerThread which updates 
+        the timer_label.
+        """
         if not (self.trial_started | self.demo_started):
+            # Create pairs (n = PAIRS_IN_DEMO) to be used in PlayDemoThread
             self.demo_pairs = []
             for dummy in range(PAIRS_IN_DEMO):
                 self.demo_pairs.append((random.randint(1,10), random.randint(1,10)))
+            # Initialize and start the self.demo_thread
             self.demo_thread = PlayDemoThread(self.demo_pairs, INTERVAL)
             self.demo_thread.start()
+            # self.demo_thread will signal self._update_demo_pair when a new_pair is up
             self.demo_thread.new_pair.connect(self._update_demo_pair)
-            self.demo_thread.finished.connect(self._demo_finished)
+            # self.demo_thread will signal self._demo_finished when all pairs have been read
+            self.demo_thread.finished.connect(self._finished)
             
-            self.allow_answer = True
+            # Initialize and start the self.timer_thread
             self.timer_thread = TimerThread(TRIAL_LENGTH)
             self.timer_thread.start()
             self.timer_thread.time_step.connect(self._update_timer)
             
+            # Change the state of the program
             self.demo_started = True
+            self.allow_answer = True
             self.mode = 'Demo'
             self.demo_btn.setEnabled(False)
             self.start_btn.setEnabled(False)            
@@ -450,6 +461,7 @@ class Window(QMainWindow):
         if not self.answerButton_clicked:
             btn = self.sender()
             self.answerButton_clicked = True
+            # Based on the state of program, decide which scorer function to use
             if self.mode == 'PASAT':
                 self._submit_answer(btn.text())
             elif self.mode == 'Demo':
@@ -489,6 +501,19 @@ class Window(QMainWindow):
                 
 ### Threads event handlers ###
     def _update_demo_pair(self, pair, time_presented):
+        """
+        This function is called whenever a new pair of numbers is presented by
+        PlayDemoThread (message is ralayed in the _start_demo). First,
+        if a answerButton has not already been clicked, or Key_Q has not
+        been pressed, the number currently in the current_typed_answer is
+        saved as the answer for the previous interval. Then the state variables
+        are reinitialized, and finally the new pair is shown on number_label,
+        the time it was presented is recorded and the current_pair is recorded
+        to be scored by _submit_demo_answer.
+        """
+        # If the answer has not been already entered, use the current value of
+        # current_typed_answer as the answer for previous interval. If no answer
+        # is provided, pass "" to the _submit_answer, which indicates not answered
         if not self.answerButton_clicked:
             self._submit_demo_answer(self.current_typed_answer)
         
@@ -542,6 +567,11 @@ class Window(QMainWindow):
 
 ### Test dynamics event handlers ###
     def _submit_demo_answer(self, user_answer):
+        """
+        This is where demo answers are scored.
+        """
+        # Reaction time is calulated as the time elapsed since the number was
+        # presented till the user clicked or typed an answer
         reaction_time = round(time.time()-self.time_presented, 1)
         if user_answer:
             # answer is a string, whether it comes from mouse or keyboard input
@@ -562,8 +592,7 @@ class Window(QMainWindow):
         
     def _submit_answer(self,user_answer):
         """
-        This is where answers are recorded and scored. TODO: Allow answer only if at least
-        two numbers have been presented.
+        This is where answers are recorded and scored.
         """
         # Reaction time is calulated as the time elapsed since the number was
         # presented till the user clicked or typed an answer
@@ -583,54 +612,46 @@ class Window(QMainWindow):
         else:
             self.results.append('N')
             self.reaction_times.append(0)
-
-    def _demo_finished(self):
-        if not self.demo_results:
-            return
-        self.number_label.setText(_("Demo Finished"))
-        self.demo_started = False
-        correct_percent = 100 * (self.demo_results.count('C')/len(self.demo_results))
-        mean_reaction_time = non_zero_mean(self.demo_reaction_times)
-        # Define stats to be shown in the statsgrid
-        self.demo_stats = [(_('Correct Answers'), self.demo_results.count('C')),
-                         (_('Incorrect Answers'), self.demo_results.count('I')),
-                         (_('Not Answered'), self.demo_results.count('N')),
-                         (_('Correct %'), correct_percent),
-                         (_('Results List'), self.demo_results),
-                         (_('Reaction Times'), self.demo_reaction_times),
-                         (_('Mean Reaction Time'),mean_reaction_time)]
-        
-        self.ShowResultsDialog()
-        self.demo_btn.setEnabled(True)
-        self.start_btn.setEnabled(True)
-        
         
     def _finished(self):
         """
-        When all numbers have been shown, shows the results in a modal called
-        results_dialog, which has a title, and a grid showing the stats, plus a button
-        for saving the results as cvs (TODO)
+        When PlayDemoThread or PlayNumbersThread have shown all the numbers/pairs, 
+        calculates the stats, shows the results using ShowResultsDialog and
+        restates the program so a new game can be started.
         """
         # When only two numbers are shown, there's no results and this code can lead
         # to errors. Just is here to prevent this error.
-        if not self.results:
+        if type(self.sender()) == PlayNumbersThread:
+            results = self.results
+            reaction_times = self.reaction_times
+            self.number_label.setText(_("Finished"))
+        elif type(self.sender()) == PlayDemoThread:
+            results = self.demo_results
+            reaction_times = self.demo_reaction_times
+            self.number_label.setText(_("Demo Finished"))
+        if not results:
             return
-        self.number_label.setText(_("Finished"))
-        self.trial_started = False
-        
+                
         # Calculate correct_percent and mean_reaction_time (for correct answers that are nonzero)
-        correct_percent = 100 * (self.results.count('C')/len(self.results))
-        mean_reaction_time = non_zero_mean(self.reaction_times)
+        correct_percent = 100 * (results.count('C')/len(results))
+        mean_reaction_time = non_zero_mean(reaction_times)
         # Define stats to be shown in the statsgrid
-        self.stats = [(_('Correct Answers'), self.results.count('C')),
-                         (_('Incorrect Answers'), self.results.count('I')),
-                         (_('Not Answered'), self.results.count('N')),
+        self.stats = [(_('Correct Answers'), results.count('C')),
+                         (_('Incorrect Answers'), results.count('I')),
+                         (_('Not Answered'), results.count('N')),
                          (_('Correct %'), correct_percent),
-                         (_('Results List'), self.results),
-                         (_('Reaction Times'), self.reaction_times),
+                         (_('Results List'), results),
+                         (_('Reaction Times'), reaction_times),
                          (_('Mean Reaction Time'),mean_reaction_time)]
-        
+        #if AUTOSAVE:
+        #    self._save_results()
         self.ShowResultsDialog()
+        
+        self.trial_started = False
+        self.demo_started = False
+        self.mode = ''
+        self.start_btn.setEnabled(True)
+        self.demo_btn.setEnabled(True)
 
 ### Menu actions event handlers (except views) ###        
     def _change_language(self):
