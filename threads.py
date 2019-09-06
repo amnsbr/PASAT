@@ -5,11 +5,21 @@ Created on Thu Aug 29 17:29:54 2019
 @author: Amin Saberi
 """
 
-import os
+import os, sys
 from PyQt5 import QtCore
 from playsound import playsound
 import time
 
+def resource_path(relative_path):
+    """
+    Needed for PyInstaller to find the audio files
+    """
+    try:
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
 
 class PlayNumbersThread(QtCore.QThread):
     """
@@ -49,7 +59,7 @@ class PlayNumbersThread(QtCore.QThread):
             # its length, and also to calculate reaction time
             time_before_playsound = time.time()
             self.new_number.emit(number, time_before_playsound)
-            playsound(os.path.join("audio", self.language, "{:d}.wav".format(number)))
+            playsound(resource_path(os.path.join("audio", self.language, "{:d}.wav".format(number))))
             length = time.time() - time_before_playsound
             time.sleep(self.interval-length)
         # This 0 serves as a right-padding and is necessary for the last interval

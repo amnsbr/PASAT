@@ -15,7 +15,7 @@ from PyQt5 import QtGui
 from PyQt5 import QtCore
 import random, time
 from helpers import redefine_gettext, non_zero_mean, center_widget
-from threads import PlayNumbersThread, TimerThread
+from threads import PlayNumbersThread, TimerThread, resource_path
 
 #TODO: Define sessions, and inside each session record the data in a csv file
 #TODO: Measure the first 1/3 and the last 1/3 stats separately
@@ -63,7 +63,7 @@ class Window(QMainWindow):
         _, _n = redefine_gettext(LANGUAGE)
 
         # Set the title and geometry of the window
-        ##self.setWindowIcon(QtGui.QIcon("icon.png"))
+        self.setWindowIcon(QtGui.QIcon(resource_path("icon.ico")))
         self.setWindowTitle(self.title)
         self.setGeometry(self.left, self.top, self.width, self.height)
         center_widget(App, self)
@@ -526,9 +526,9 @@ class Window(QMainWindow):
     def _change_language(self):
         global LANGUAGE
         selected_language = self.sender().text()
-        if selected_language == "Farsi":
+        if selected_language == _("Farsi"):
             LANGUAGE = "fa"
-        elif selected_language == "English":
+        elif selected_language == _("English"):
             LANGUAGE = "en"
         App.exit(EXIT_CODE_REBOOT)
             

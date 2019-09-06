@@ -6,6 +6,7 @@ Created on Thu Aug 29 17:25:33 2019
 """
 from PyQt5.QtWidgets import QApplication
 import gettext
+from threads import resource_path
 
 ### General Helpers
 def en_to_ar_num(number_str):
@@ -31,7 +32,7 @@ def en_to_ar_num(number_str):
     return arnum
 def redefine_gettext(language):
     if language == "fa":
-        fa = gettext.translation('PASAT', localedir = 'locale', languages=['fa'])
+        fa = gettext.translation('PASAT', localedir = resource_path('locale'), languages=['fa'])
         fa.install()
         _ = fa.gettext
         _n = en_to_ar_num
