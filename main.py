@@ -29,7 +29,7 @@ NUMBERS_PER_TRIAL = 10
 PAIRS_IN_DEMO = 10
 INTERVAL = 3 #seconds
 TRIAL_LENGTH = NUMBERS_PER_TRIAL * INTERVAL #seconds
-AUTOSAVE = True
+AUTOSAVE = False
 LANGUAGE = "en"
 _, _n = redefine_gettext(LANGUAGE)
 
@@ -93,14 +93,6 @@ class Window(QMainWindow):
         self.mode = ''
         # By default, show the demo. Can change it in the preferences.
         self.show_demo_on = True
-        # Create a list to store the numbers that have been played so far
-        self.played_numbers = []
-        self.current_pair = ()
-        # Keep track of reaction_times and "C" (correct)/"I" (incorrect)/"N" (not answered)
-        self.reaction_times = []
-        self.results = []
-        self.demo_reaction_times = []
-        self.demo_results = []
         # Initialize time_presented. This is not the time_presented for the first
         # number, it's only here to prevent undefined error.
         self.time_presented = time.time()
@@ -302,14 +294,21 @@ class Window(QMainWindow):
         # Add the stats in a statsgrid
         statsbox = QGroupBox()
         statsgrid = QGridLayout()
-        self.btns = []
         for i in range(len(self.stats)):
             for j in range(2):
                 label = QLabel(str(self.stats[i][j]))
                 statsgrid.addWidget(label, i, j)
         statsbox.setLayout(statsgrid)
         vbox.addWidget(statsbox)        
-
+        
+        if not AUTOSAVE:
+            cancel_btn = QPushButton(_("Discard"))
+            cancel_btn.clicked.connect(results_dialog.close)
+            save_btn = QPushButton(_("Save"))
+            save_btn.clicked.connect(self._save_results)   
+            vbox.addWidget(cancel_btn)
+            vbox.addWidget(save_btn)
+        
         results_dialog.setLayout(vbox)        
         
         # Make it RTL if the language is fa
@@ -398,6 +397,11 @@ class Window(QMainWindow):
         """
         if not (self.trial_started | self.demo_started):
             # Create pairs (n = PAIRS_IN_DEMO) to be used in PlayDemoThread
+            self.current_pair = ()
+            # Keep track of reaction_times and "C" (correct)/"I" (incorrect)/"N" (not answered)
+            self.demo_reaction_times = []
+            self.demo_results = []
+            
             self.demo_pairs = []
             for dummy in range(PAIRS_IN_DEMO):
                 self.demo_pairs.append((random.randint(1,10), random.randint(1,10)))
@@ -410,13 +414,14 @@ class Window(QMainWindow):
             self.demo_thread.finished.connect(self._finished)
             
             # Initialize and start the self.timer_thread
-            self.timer_thread = TimerThread(TRIAL_LENGTH)
+            self.timer_thread = TimerThread(PAIRS_IN_DEMO * INTERVAL)
             self.timer_thread.start()
             self.timer_thread.time_step.connect(self._update_timer)
             
             # Change the state of the program
             self.demo_started = True
-            self.allow_answer = True
+            self.allow_answer = False
+            self.answerButton_clicked = False
             self.mode = 'Demo'
             self.demo_btn.setEnabled(False)
             self.start_btn.setEnabled(False)            
@@ -429,6 +434,9 @@ class Window(QMainWindow):
         the random_numbers one by one, and TimerThread which updates the timer_label.
         """
         if not self.trial_started:
+            self.reaction_times = []
+            self.results = []
+            self.played_numbers = []
             # Create a list of random_numbers with the length of NUMBERS_PER_TRIAL. The range
             # of random numbers is [1, 10], so the possible answers are [2, 20]
             self.random_numbers = []
@@ -445,8 +453,11 @@ class Window(QMainWindow):
             self.timer_thread.time_step.connect(self._update_timer)
             
             self.trial_started = True
+            self.allow_answer = False
+            self.answerButton_clicked = False
             self.mode = 'PASAT'
-            self.start_btn.setEnabled(False)
+            self.demo_btn.setEnabled(False)
+            self.start_btn.setEnabled(False)            
         
     def _on_click_answer(self):
         """
@@ -514,7 +525,7 @@ class Window(QMainWindow):
         # If the answer has not been already entered, use the current value of
         # current_typed_answer as the answer for previous interval. If no answer
         # is provided, pass "" to the _submit_answer, which indicates not answered
-        if not self.answerButton_clicked:
+        if self.allow_answer and not self.answerButton_clicked:
             self._submit_demo_answer(self.current_typed_answer)
         
         self.answerButton_clicked = False
@@ -525,6 +536,7 @@ class Window(QMainWindow):
 
         self.number_label.setText(_n(str(pair[0])) + ' + ' + _n(str(pair[1])))
         self.current_pair = pair
+        self.allow_answer = True
                     
     def _update_number(self, number, time_presented):
         """
@@ -570,6 +582,7 @@ class Window(QMainWindow):
         """
         This is where demo answers are scored.
         """
+        print("_submit_demo_answer", self.current_pair, user_answer)
         # Reaction time is calulated as the time elapsed since the number was
         # presented till the user clicked or typed an answer
         reaction_time = round(time.time()-self.time_presented, 1)
@@ -643,15 +656,17 @@ class Window(QMainWindow):
                          (_('Results List'), results),
                          (_('Reaction Times'), reaction_times),
                          (_('Mean Reaction Time'),mean_reaction_time)]
-        #if AUTOSAVE:
-        #    self._save_results()
+        if AUTOSAVE:
+            self._save_results()
         self.ShowResultsDialog()
         
         self.trial_started = False
         self.demo_started = False
-        self.mode = ''
         self.start_btn.setEnabled(True)
         self.demo_btn.setEnabled(True)
+
+    def _save_results(self):
+        pass
 
 ### Menu actions event handlers (except views) ###        
     def _change_language(self):
@@ -664,7 +679,7 @@ class Window(QMainWindow):
         App.exit(EXIT_CODE_REBOOT)
             
     def _save_preferences(self):
-        global NUMBERS_PER_TRIAL, INTERVAL, TRIAL_LENGTH
+        global NUMBERS_PER_TRIAL, INTERVAL, TRIAL_LENGTH, PAIRS_IN_DEMO
         NUMBERS_PER_TRIAL = int(self.numbers_per_trial_input.text())
         INTERVAL = int(self.interval_input.text())
         PAIRS_IN_DEMO = int(self.pairs_in_demo_input.text())
