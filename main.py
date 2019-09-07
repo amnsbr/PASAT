@@ -10,28 +10,27 @@ Created on Wed Aug 28 15:56:33 2019
 from PyQt5.QtWidgets import QApplication, QDialog, QPushButton, QHBoxLayout,\
  QGroupBox, QVBoxLayout, QLabel, QGridLayout, QLineEdit, QMessageBox,\
  QMainWindow, QAction, QFormLayout, QSpinBox, QCheckBox
-import sys
 from PyQt5 import QtGui
 from PyQt5 import QtCore
-import random, time
-from helpers import redefine_gettext, non_zero_mean, center_widget
+import sys, random, time
+import helpers
 from threads import PlayNumbersThread, PlayDemoThread, TimerThread, resource_path
 
-#TODO: Define sessions, and inside each session record the data in a csv file
-#TODO: Measure the first 1/3 and the last 1/3 stats separately
+#TODO: Define sessions and trials
+#TODO: Measure the first 1/2 and the last 1/2 stats separately
 #TODO: On keyPressEvent, fix the problem with Key_Enter, Key_Q is not user friendly
 #TODO: Used globals for the language change, it works but isn't a good practice!
 #TODO: Show results in table
 #TODO: More comments + better organization (maybe multiple files)
 #TODO: Add test description text
 
-NUMBERS_PER_TRIAL = 10
-PAIRS_IN_DEMO = 10
+NUMBERS_PER_TRIAL = 2
+PAIRS_IN_DEMO = 2
 INTERVAL = 3 #seconds
 TRIAL_LENGTH = NUMBERS_PER_TRIAL * INTERVAL #seconds
 AUTOSAVE = False
 LANGUAGE = "en"
-_, _n = redefine_gettext(LANGUAGE)
+_, _n = helpers.redefine_gettext(LANGUAGE)
 
 EXIT_CODE_REBOOT = -123
         
@@ -62,13 +61,13 @@ class Window(QMainWindow):
         # language is changed, __init__ is called again, and _ and _n need to be
         # redefined
         global _, _n
-        _, _n = redefine_gettext(LANGUAGE)
+        _, _n = helpers.redefine_gettext(LANGUAGE)
 
         # Set the title and geometry of the window
         self.setWindowIcon(QtGui.QIcon(resource_path("icon.ico")))
         self.setWindowTitle(self.title)
         self.setGeometry(self.left, self.top, self.width, self.height)
-        center_widget(App, self)
+        helpers.center_widget(App, self)
 
         self.CreateMenu()
         self.InitWindow()
@@ -95,7 +94,9 @@ class Window(QMainWindow):
         self.show_demo_on = True
         # Initialize time_presented. This is not the time_presented for the first
         # number, it's only here to prevent undefined error.
+        self.show_timer_on = False
         self.time_presented = time.time()
+        self.csv_filepath = 'results.csv' #TODO
         
  
     def CreateMenu(self):
@@ -273,13 +274,13 @@ class Window(QMainWindow):
         _finished or _demo_finished event handlers.
         """
         # Initiate the dialog
-        results_dialog = QDialog(self)
+        self.results_dialog = QDialog(self)
         if self.mode == 'PASAT':
-            results_dialog.setWindowTitle(_("Results"))
+            self.results_dialog.setWindowTitle(_("Results"))
         elif self.mode == 'Demo':
-            results_dialog.setWindowTitle(_("Demo Results"))            
-        results_dialog.setGeometry(self.left, self.top, self.width*0.75, self.height*0.75)
-        center_widget(App, results_dialog)
+            self.results_dialog.setWindowTitle(_("Demo Results"))            
+        self.results_dialog.setGeometry(self.left, self.top, self.width*0.75, self.height*0.75)
+        helpers.center_widget(App, self.results_dialog)
         
         # Initialize the vertical layout container vbox and add the title
         vbox = QVBoxLayout()
@@ -303,19 +304,19 @@ class Window(QMainWindow):
         
         if not AUTOSAVE:
             cancel_btn = QPushButton(_("Discard"))
-            cancel_btn.clicked.connect(results_dialog.close)
+            cancel_btn.clicked.connect(self.results_dialog.close)
             save_btn = QPushButton(_("Save"))
             save_btn.clicked.connect(self._save_results)   
             vbox.addWidget(cancel_btn)
             vbox.addWidget(save_btn)
         
-        results_dialog.setLayout(vbox)        
+        self.results_dialog.setLayout(vbox)        
         
         # Make it RTL if the language is fa
         if LANGUAGE == "fa":
-            results_dialog.setLayoutDirection(QtCore.Qt.RightToLeft)
+            self.results_dialog.setLayoutDirection(QtCore.Qt.RightToLeft)
         # Show the dialog #TODO: add exit button
-        results_dialog.show()
+        self.results_dialog.show()
 
 ### Preferences view ####
     def ShowPreferences(self):
@@ -325,7 +326,7 @@ class Window(QMainWindow):
         self.preferences_dialog = QDialog(self)
         self.preferences_dialog.setWindowTitle(_("Preferences"))
         self.preferences_dialog.setGeometry(self.left, self.top, self.width*0.75, self.height*0.75)
-        center_widget(App, self.preferences_dialog)
+        helpers.center_widget(App, self.preferences_dialog)
         
         vbox = QVBoxLayout()
         
@@ -339,6 +340,9 @@ class Window(QMainWindow):
         self.interval_input.setValue(INTERVAL)
         self.interval_input.setMinimum(2)
         interval_label = QLabel(_("Interval between numbers (seconds)"))
+        self.show_timer_input = QCheckBox()
+        self.show_timer_input.setChecked(self.show_timer_on)
+        show_timer_label = QLabel(_("Show timer"))
         self.show_demo_input = QCheckBox()
         self.show_demo_input.setChecked(self.show_demo_on)
         show_demo_label = QLabel(_("Show demo"))
@@ -348,6 +352,7 @@ class Window(QMainWindow):
         pairs_in_demo_label = QLabel(_("Number of pairs in demo"))
         form.addRow(numbers_per_trial_label, self.numbers_per_trial_input)
         form.addRow(interval_label, self.interval_input)
+        form.addRow(show_timer_label, self.show_timer_input)
         form.addRow(show_demo_label, self.show_demo_input)
         form.addRow(pairs_in_demo_label, self.pairs_in_demo_input)
         preferencesForm.setLayout(form)
@@ -414,9 +419,10 @@ class Window(QMainWindow):
             self.demo_thread.finished.connect(self._finished)
             
             # Initialize and start the self.timer_thread
-            self.timer_thread = TimerThread(PAIRS_IN_DEMO * INTERVAL)
-            self.timer_thread.start()
-            self.timer_thread.time_step.connect(self._update_timer)
+            if self.show_timer_on:
+                self.timer_thread = TimerThread(PAIRS_IN_DEMO * INTERVAL)
+                self.timer_thread.start()
+                self.timer_thread.time_step.connect(self._update_timer)
             
             # Change the state of the program
             self.demo_started = True
@@ -448,9 +454,10 @@ class Window(QMainWindow):
             self.audio_thread.new_number.connect(self._update_number)
             self.audio_thread.finished.connect(self._finished)
             
-            self.timer_thread = TimerThread(TRIAL_LENGTH)
-            self.timer_thread.start()
-            self.timer_thread.time_step.connect(self._update_timer)
+            if self.show_timer_on:
+                self.timer_thread = TimerThread(TRIAL_LENGTH)
+                self.timer_thread.start()
+                self.timer_thread.time_step.connect(self._update_timer)
             
             self.trial_started = True
             self.allow_answer = False
@@ -647,7 +654,7 @@ class Window(QMainWindow):
                 
         # Calculate correct_percent and mean_reaction_time (for correct answers that are nonzero)
         correct_percent = 100 * (results.count('C')/len(results))
-        mean_reaction_time = non_zero_mean(reaction_times)
+        mean_reaction_time = helpers.non_zero_mean(reaction_times)
         # Define stats to be shown in the statsgrid
         self.stats = [(_('Correct Answers'), results.count('C')),
                          (_('Incorrect Answers'), results.count('I')),
@@ -666,7 +673,23 @@ class Window(QMainWindow):
         self.demo_btn.setEnabled(True)
 
     def _save_results(self):
-        pass
+        all_results = {'Addition':[], 'PASAT':[]} #TODO inconsistent variable names
+        all_reaction_times = {'Addition':[], 'PASAT':[]}
+        modes = []
+        session_ids = {'Addition':1, 'PASAT':1} #TOOD
+        if hasattr(self, 'demo_results'):
+            all_results['Addition'] = self.demo_results
+            all_reaction_times['Addition'] = self.demo_reaction_times
+            modes.append('Addition')
+        if hasattr(self, 'results'):
+            all_results['PASAT'] = self.results
+            all_reaction_times['PASAT'] = self.reaction_times
+            modes.append('PASAT')
+        helpers.update_csv(self.csv_filepath, self.player_name, self.player_code,\
+                           all_results, all_reaction_times, modes, session_ids)
+        
+        self.results_dialog.close()
+
 
 ### Menu actions event handlers (except views) ###        
     def _change_language(self):
@@ -690,6 +713,12 @@ class Window(QMainWindow):
         else:
             self.demo_btn.hide()
             self.show_demo_on = False
+        if self.show_timer_input.isChecked():
+            self.timer_label.show()
+            self.show_timer_on = True
+        else:
+            self.timer_label.hide()
+            self.show_timer_on = False
         self.preferences_dialog.close()
         
     def _show_about(self):
