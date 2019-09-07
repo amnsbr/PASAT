@@ -9,7 +9,7 @@ Created on Wed Aug 28 15:56:33 2019
 
 from PyQt5.QtWidgets import QApplication, QDialog, QPushButton, QHBoxLayout,\
  QGroupBox, QVBoxLayout, QLabel, QGridLayout, QLineEdit, QMessageBox,\
- QMainWindow, QAction, QFormLayout, QSpinBox, QCheckBox
+ QMainWindow, QAction, QFormLayout, QSpinBox, QCheckBox, QLineEdit
 from PyQt5 import QtGui
 from PyQt5 import QtCore
 import sys, random, time
@@ -81,7 +81,7 @@ class Window(QMainWindow):
         # Initialize allow_answer. Do not allow_answer (inside _on_click_answer and 
         # keyboard handler), until more than one numbers have been presented
         self.allow_answer = False
-        # Initialize the current_typed_answer (which is the value for self.answer_label).
+        # Initialize the current_typed_answer (which is the value for self.answer_input).
         # This will record the typed answer, and is reset after each interval
         # TODO: make it a _ that blips!
         self.current_typed_answer = ''
@@ -149,7 +149,7 @@ class Window(QMainWindow):
         """
         Adds elements to the Window. Inside the Window is the vbox. And each
         row of widgets are added one by one to vbox, including registerForm, number_label,
-        timer_label, answerButtons, answer_label and actionButtons. All widgets except
+        timer_label, answerButtons, answer_input and actionButtons. All widgets except
         registerForm are hidden before that the registration is completed. They are .show n
         inside _on_click_register. TODO: There might be a better solution to this.
         """        
@@ -179,14 +179,24 @@ class Window(QMainWindow):
         self.answerButtons.hide()
         vbox.addWidget(self.answerButtons)
         
-        # Add the answer_label which prints the self.current_typed_answer
+        # Add the answer_input which prints the self.current_typed_answer
         # and serves as another way of entering the answer. Could've used text-input,
         # but this seems more suitable for my purpose.
-        self.answer_label = QLabel()
-        self.answer_label.setAlignment(QtCore.Qt.AlignCenter)
-        self.answer_label.hide()
-        ##self.answer_label.setFont(QtGui.QFont("Sanserif", 20))
-        vbox.addWidget(self.answer_label)
+        self.answer_input = QLineEdit()
+        answer_reg_ex = QtCore.QRegExp("[0-9]+")
+        answer_input_validator = QtGui.QRegExpValidator(answer_reg_ex, self.answer_input)
+        self.answer_input.setValidator(answer_input_validator)
+        self.answer_input.returnPressed.connect(self._answer_input_return_pressed)
+        self.answer_input.setStyleSheet("""
+                                        .QLineEdit {
+                                        border: 0;
+                                        background: transparent;
+                                        }                                
+                                        """)
+        self.answer_input.setAlignment(QtCore.Qt.AlignCenter)
+        self.answer_input.hide()
+        ##self.answer_input.setFont(QtGui.QFont("Sanserif", 20))
+        vbox.addWidget(self.answer_input)
 
         # Add the Start and Exit buttons TODO: Move exit and other functionalities to Menubar
         self.CreateActionButtons()
@@ -284,7 +294,7 @@ class Window(QMainWindow):
         
         # Initialize the vertical layout container vbox and add the title
         vbox = QVBoxLayout()
-        if self.mode == 'PASAT':    
+        if self.mode == 'PASAT':
             title = QLabel(_("Results"))
         elif self.mode == 'Demo':
             title = QLabel(_("Demo Results"))
@@ -382,7 +392,7 @@ class Window(QMainWindow):
             self.player_code = self.code_input.text()
             self.number_label.show()
             self.timer_label.show()
-            self.answer_label.show()
+            self.answer_input.show()
             self.answerButtons.show()
             self.actionButtons.show()
             #self.registerForm.deleteLater()
@@ -471,7 +481,7 @@ class Window(QMainWindow):
         When a button from answerButtons is clicked, this function is activated,
         which simply passes on the number that has been clicked to _submit_answer.
         """
-        # Do not change answer_label if allow_answer is False (i.e. only one number
+        # Do not change answer_input if allow_answer is False (i.e. only one number
         # has been presented)
         if not self.allow_answer:
             return
@@ -485,37 +495,42 @@ class Window(QMainWindow):
             elif self.mode == 'Demo':
                 self._submit_demo_answer(btn.text())
         
+    def _answer_input_return_pressed(self):
+        """
+        When Key_Return or Key_Enter is pressed while focus is on answer_input
+        (which is always, since keyPressEvent sets focus to answer_input), relays
+        current text of answer_input to _submit_answer or _submit_demo_answer
+        depending on self.mode
+        """
+        if not self.allow_answer:
+            return
+        if not self.answerButton_clicked:
+            self.answerButton_clicked = True
+            if self.mode == 'PASAT':
+                self._submit_answer(self.answer_input.text())
+            elif self.mode == 'Demo':
+                self._submit_demo_answer(self.answer_input.text())
+
     def keyPressEvent(self, e):
         """
-        This handles the editing of answer_label value and correspondingly updating
-        current_typed_answer. It allows only numbers to be entered, and using 
-        Key_Backspace will remove the last digit. When the INTERVAL is finished, 
-        the value in current_typed_answer is saved in the _update_number. Enter and
-        Space for entering the answer before the INTERVAL is not working probably because
-        they interact with the actionButtons! So used Q instead!
+        This function sets focus to the answer_input when any key is pressed, and
+        if the focus is not already on the answer_input, catches the key pressed
+        and if it's a number enters it in the answer_input
         """
-        # Do not change answer_label if allow_answer is False (i.e. only one number
+        # Do not change answer_input if allow_answer is False (i.e. only one number
         # has been presented)
         if not self.allow_answer:
             return
         # Backspace will remove the last digit
-        if e.key() == QtCore.Qt.Key_Backspace:
-            self.current_typed_answer = self.current_typed_answer[:-1]
-            self.answer_label.setText(self.current_typed_answer)
-        elif e.key() == QtCore.Qt.Key_Q and (self.current_typed_answer) \
-             and (not self.answerButton_clicked):
-            self._submit_answer(self.current_typed_answer)
-            self.answerButton_clicked = True
+        self.answer_input.setFocus()
+        try:
+            key_str = chr(e.key())
+        except:
+            pass
         else:
-            try:
-                key_str = chr(e.key())
-            except:
-                pass
-            else:
-                if key_str in ['0','1','2','3','4','5','6','7','8','9'] and\
-                len(self.current_typed_answer) < 2:
-                    self.current_typed_answer += _n(key_str)
-                    self.answer_label.setText(self.current_typed_answer)
+            if key_str in ['0','1','2','3','4','5','6','7','8','9']:
+                self.current_typed_answer += key_str
+                self.answer_input.setText(self.current_typed_answer)
                 
 ### Threads event handlers ###
     def _update_demo_pair(self, pair, time_presented):
@@ -537,7 +552,7 @@ class Window(QMainWindow):
         
         self.answerButton_clicked = False
         self.current_typed_answer = ''
-        self.answer_label.setText('')
+        self.answer_input.setText('')
 
         self.time_presented = time_presented
 
@@ -562,10 +577,10 @@ class Window(QMainWindow):
         if self.allow_answer and not self.answerButton_clicked:
             self._submit_answer(self.current_typed_answer)
 
-        # Reinitialize state variables and answer_label
+        # Reinitialize state variables and answer_input
         self.answerButton_clicked = False
         self.current_typed_answer = ''
-        self.answer_label.setText('')
+        self.answer_input.setText('')
 
         # Record the time that the new number was presented
         self.time_presented = time_presented
@@ -589,7 +604,6 @@ class Window(QMainWindow):
         """
         This is where demo answers are scored.
         """
-        print("_submit_demo_answer", self.current_pair, user_answer)
         # Reaction time is calulated as the time elapsed since the number was
         # presented till the user clicked or typed an answer
         reaction_time = round(time.time()-self.time_presented, 1)
