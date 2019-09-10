@@ -9,7 +9,7 @@ Created on Wed Aug 28 15:56:33 2019
 
 from PyQt5.QtWidgets import QApplication, QDialog, QPushButton, QHBoxLayout,\
  QGroupBox, QVBoxLayout, QLabel, QGridLayout, QLineEdit, QMessageBox,\
- QMainWindow, QAction, QFormLayout, QSpinBox, QCheckBox, QLineEdit
+ QMainWindow, QAction, QFormLayout, QSpinBox, QCheckBox
 from PyQt5 import QtGui
 from PyQt5 import QtCore
 import sys, random, time
@@ -18,13 +18,11 @@ from threads import PlayNumbersThread, PlayDemoThread, TimerThread, resource_pat
 
 #TODO: Define sessions and trials
 #TODO: Measure the first 1/2 and the last 1/2 stats separately
-#TODO: On keyPressEvent, fix the problem with Key_Enter, Key_Q is not user friendly
 #TODO: Used globals for the language change, it works but isn't a good practice!
 #TODO: Show results in table
-#TODO: More comments + better organization (maybe multiple files)
 #TODO: Add test description text
 
-NUMBERS_PER_TRIAL = 2
+NUMBERS_PER_TRIAL = 10
 PAIRS_IN_DEMO = 2
 INTERVAL = 3 #seconds
 TRIAL_LENGTH = NUMBERS_PER_TRIAL * INTERVAL #seconds
@@ -664,8 +662,7 @@ class Window(QMainWindow):
             reaction_times = self.demo_reaction_times
             self.number_label.setText(_("Demo Finished"))
         if not results:
-            return
-                
+            return                
         # Calculate correct_percent and mean_reaction_time (for correct answers that are nonzero)
         correct_percent = 100 * (results.count('C')/len(results))
         mean_reaction_time = helpers.non_zero_mean(reaction_times)
@@ -676,7 +673,9 @@ class Window(QMainWindow):
                          (_('Correct %'), correct_percent),
                          (_('Results List'), results),
                          (_('Reaction Times'), reaction_times),
-                         (_('Mean Reaction Time'),mean_reaction_time)]
+                         (_('Mean Reaction Time'),mean_reaction_time),
+                         (_('Last third correct - First third correct'), helpers.get_fatigability(results)),
+                         (_('Percent decrease in the last third'), helpers.get_fatigability(results, as_percent=True))]
         if AUTOSAVE:
             self._save_results()
         self.ShowResultsDialog()
