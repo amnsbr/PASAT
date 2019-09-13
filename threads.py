@@ -45,6 +45,7 @@ class PlayNumbersThread(QtCore.QThread):
         self.random_numbers = random_numbers
         self.language = language
         self.interval = interval
+        self.paused = False
     def run(self):
         """
         Overwrites QThread.run function which executes the thread. It loops
@@ -61,11 +62,19 @@ class PlayNumbersThread(QtCore.QThread):
             self.new_number.emit(number, time_before_playsound)
             playsound(resource_path(os.path.join("audio", self.language, "{:d}.wav".format(number))))
             length = time.time() - time_before_playsound
-            time.sleep(self.interval-length)
+            for i in range(round(100*(self.interval-length))):
+                while self.paused:
+                    pass
+                time.sleep(0.01)
+           
+        self.stop()
+    
+    def stop(self):
         # This 0 serves as a right-padding and is necessary for the last interval
         # to be calculated when the input is via keyboard 
         self.new_number.emit(0, time.time())
         self.finished.emit()
+        self.terminate()
 
 class PlayDemoThread(QtCore.QThread):
     """
@@ -90,6 +99,7 @@ class PlayDemoThread(QtCore.QThread):
         super().__init__()
         self.demo_pairs = demo_pairs
         self.interval = interval
+        self.paused = False
     def run(self):
         """
         Overwrites QThread.run function which executes the thread. It loops
@@ -104,11 +114,19 @@ class PlayDemoThread(QtCore.QThread):
             # its length, and also to calculate reaction time
             time_before_playsound = time.time()
             self.new_pair.emit(pair, time_before_playsound)
-            time.sleep(self.interval)
+            for i in range(self.interval*100):
+                while self.paused:
+                    pass
+                time.sleep(0.01)
         # This 0 serves as a right-padding and is necessary for the last interval
         # to be calculated when the input is via keyboard 
+        self.stop()
+
+    def stop(self):
         self.new_pair.emit((0,0), time.time())
         self.finished.emit()
+        self.terminate()        
+
             
 class TimerThread(QtCore.QThread):
     """

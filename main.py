@@ -17,7 +17,6 @@ import helpers
 from threads import PlayNumbersThread, PlayDemoThread, TimerThread, resource_path
 
 #TODO: Define sessions and trials
-#TODO: Measure the first 1/2 and the last 1/2 stats separately
 #TODO: Used globals for the language change, it works but isn't a good practice!
 #TODO: Show results in table
 #TODO: Add test description text
@@ -100,7 +99,7 @@ class Window(QMainWindow):
     def CreateMenu(self):
         mainMenu = self.menuBar()
         sessionMenu = mainMenu.addMenu(_('Session'))
-        #runMenu = mainMenu.addMenu(_('Run'))
+        runMenu = mainMenu.addMenu(_('Run'))
         optionsMenu = mainMenu.addMenu(_('Options'))
         helpMenu = mainMenu.addMenu(_('Help'))
         
@@ -114,12 +113,24 @@ class Window(QMainWindow):
         exitAction.triggered.connect(self._exit)
         sessionMenu.addAction(exitAction)
         
-#        startRunAction = QAction(_("Start"), self)
-#        runMenu.addAction(startRunAction)
-#        stopRunAction = QAction(_("Stop"), self)
-#        runMenu.addAction(stopRunAction)
-#        pauseRunAction = QAction(_("Pause"), self)
-#        runMenu.addAction(pauseRunAction)
+        self.startRunAction = QAction(_("Start"), self)
+        self.startRunAction.triggered.connect(self._start)
+        runMenu.addAction(self.startRunAction)
+        self.demoRunAction = QAction(_("Demo"), self)
+        self.demoRunAction.triggered.connect(self._start_demo)
+        runMenu.addAction(self.demoRunAction)
+        self.stopRunAction = QAction(_("Stop"), self)
+        self.stopRunAction.setEnabled(False)
+        self.stopRunAction.triggered.connect(self._stop)
+        runMenu.addAction(self.stopRunAction)
+        self.pauseRunAction = QAction(_("Pause"), self)
+        self.pauseRunAction.setEnabled(False)
+        self.pauseRunAction.triggered.connect(self._pause)
+        runMenu.addAction(self.pauseRunAction)
+        self.resumeRunAction = QAction(_("Resume"), self)
+        self.resumeRunAction.setEnabled(False)
+        self.resumeRunAction.triggered.connect(self._resume)
+        runMenu.addAction(self.resumeRunAction)
         
         preferencesAction = QAction(_("Preferences"), self)
         preferencesAction.triggered.connect(self.ShowPreferences)
@@ -438,7 +449,9 @@ class Window(QMainWindow):
             self.answerButton_clicked = False
             self.mode = 'Demo'
             self.demo_btn.setEnabled(False)
-            self.start_btn.setEnabled(False)            
+            self.start_btn.setEnabled(False)
+            self.stopRunAction.setEnabled(True)
+            self.pauseRunAction.setEnabled(True)
 
     def _start(self):
         """
@@ -472,7 +485,9 @@ class Window(QMainWindow):
             self.answerButton_clicked = False
             self.mode = 'PASAT'
             self.demo_btn.setEnabled(False)
-            self.start_btn.setEnabled(False)            
+            self.start_btn.setEnabled(False)
+            self.stopRunAction.setEnabled(True)
+            self.pauseRunAction.setEnabled(True)
         
     def _on_click_answer(self):
         """
@@ -661,27 +676,28 @@ class Window(QMainWindow):
             results = self.demo_results
             reaction_times = self.demo_reaction_times
             self.number_label.setText(_("Demo Finished"))
-        if not results:
-            return                
-        # Calculate correct_percent and mean_reaction_time (for correct answers that are nonzero)
-        correct_percent = 100 * (results.count('C')/len(results))
-        mean_reaction_time = helpers.non_zero_mean(reaction_times)
-        # Define stats to be shown in the statsgrid
-        self.stats = [(_('Correct Answers'), results.count('C')),
-                         (_('Incorrect Answers'), results.count('I')),
-                         (_('Not Answered'), results.count('N')),
-                         (_('Correct %'), correct_percent),
-                         (_('Results List'), results),
-                         (_('Reaction Times'), reaction_times),
-                         (_('Mean Reaction Time'),mean_reaction_time),
-                         (_('Last third correct - First third correct'), helpers.get_fatigability(results)),
-                         (_('Percent decrease in the last third'), helpers.get_fatigability(results, as_percent=True))]
-        if AUTOSAVE:
-            self._save_results()
-        self.ShowResultsDialog()
+
+        if results:
+            # Calculate correct_percent and mean_reaction_time (for correct answers that are nonzero)
+            correct_percent = 100 * (results.count('C')/len(results))
+            mean_reaction_time = helpers.non_zero_mean(reaction_times)
+            # Define stats to be shown in the statsgrid
+            self.stats = [(_('Correct Answers'), results.count('C')),
+                             (_('Incorrect Answers'), results.count('I')),
+                             (_('Not Answered'), results.count('N')),
+                             (_('Correct %'), correct_percent),
+                             (_('Results List'), results),
+                             (_('Reaction Times'), reaction_times),
+                             (_('Mean Reaction Time'),mean_reaction_time),
+                             (_('Last third correct - First third correct'), helpers.get_fatigability(results)),
+                             (_('Percent decrease in the last third'), helpers.get_fatigability(results, as_percent=True))]
+            if AUTOSAVE:
+                self._save_results()
+            self.ShowResultsDialog()
         
         self.trial_started = False
         self.demo_started = False
+        self.allow_answer = False
         self.start_btn.setEnabled(True)
         self.demo_btn.setEnabled(True)
 
@@ -704,7 +720,31 @@ class Window(QMainWindow):
         self.results_dialog.close()
 
 
-### Menu actions event handlers (except views) ###        
+### Menu actions event handlers (except views) ###
+    def _stop(self):
+        if self.mode == 'PASAT':
+            self.audio_thread.stop()
+        elif self.mode == 'Demo':
+            self.demo_thread.stop()
+    
+    def _pause(self):
+        if self.mode == 'PASAT':
+            self.audio_thread.paused = True
+        elif self.mode == 'Demo':
+            self.demo_thread.paused = True
+        self.allow_answer = False
+        self.pauseRunAction.setEnabled(False)
+        self.resumeRunAction.setEnabled(True)
+        
+    def _resume(self):
+        if self.mode == 'PASAT':
+            self.audio_thread.paused = False
+        elif self.mode == 'Demo':
+            self.demo_thread.paused = False
+        self.allow_answer = True
+        self.pauseRunAction.setEnabled(True)
+        self.resumeRunAction.setEnabled(False)
+        
     def _change_language(self):
         global LANGUAGE
         selected_language = self.sender().text()
