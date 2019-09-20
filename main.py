@@ -25,7 +25,7 @@ NUMBERS_PER_TRIAL = 10
 PAIRS_IN_DEMO = 2
 INTERVAL = 3 #seconds
 TRIAL_LENGTH = NUMBERS_PER_TRIAL * INTERVAL #seconds
-AUTOSAVE = False
+AUTOSAVE = True
 LANGUAGE = "en"
 _, _n = helpers.redefine_gettext(LANGUAGE)
 
@@ -80,7 +80,6 @@ class Window(QMainWindow):
         self.allow_answer = False
         # Initialize the current_typed_answer (which is the value for self.answer_input).
         # This will record the typed answer, and is reset after each interval
-        # TODO: make it a _ that blips!
         self.current_typed_answer = ''
         # Record if the trial has been started, so clicking start afterwards wouldn't
         # do anything.
@@ -321,7 +320,9 @@ class Window(QMainWindow):
         statsbox.setLayout(statsgrid)
         vbox.addWidget(statsbox)        
         
-        if not AUTOSAVE:
+        if AUTOSAVE:
+            vbox.addWidget(QLabel(_("Results were automatically saved")))
+        else:
             cancel_btn = QPushButton(_("Discard"))
             cancel_btn.clicked.connect(self.results_dialog.close)
             save_btn = QPushButton(_("Save"))
@@ -702,6 +703,11 @@ class Window(QMainWindow):
         self.demo_btn.setEnabled(True)
 
     def _save_results(self):
+        """
+        Prepares the data for helpers.update_csv and calls it. Called if AUTOSAVE is enabled, 
+        or when Save button from results_dialog is
+        clicked. 
+        """
         all_results = {'Addition':[], 'PASAT':[]} #TODO inconsistent variable names
         all_reaction_times = {'Addition':[], 'PASAT':[]}
         modes = []
@@ -716,36 +722,67 @@ class Window(QMainWindow):
             modes.append('PASAT')
         helpers.update_csv(self.csv_filepath, self.player_name, self.player_code,\
                            all_results, all_reaction_times, modes, session_ids)
-        
-        self.results_dialog.close()
+        try:
+            self.results_dialog.close()
+        except:
+            pass
 
 
 ### Menu actions event handlers (except views) ###
     def _stop(self):
+        """
+        When stopRunAction is pressed from the Run menu, this function is called.
+        It simply calls the .stop() function of the currently running thread and 
+        disables pause and stop menu actions.
+        """
         if self.mode == 'PASAT':
             self.audio_thread.stop()
         elif self.mode == 'Demo':
             self.demo_thread.stop()
+        # Disable pause and stop within the Run menu    
+        self.pauseRunAction.setEnabled(False)
+        self.stopRunAction.setEnabled(False)
     
     def _pause(self):
+        """
+        When pauseRunAction is pressed from the Run menu, this function is called.
+        It sets currently running thread status to .paused = True (which is taken
+        care of within the thread run() function). Also, disables pause and enables
+        resume menu actions.
+        """
         if self.mode == 'PASAT':
             self.audio_thread.paused = True
         elif self.mode == 'Demo':
             self.demo_thread.paused = True
+        # TODO: this does not work appropriately
         self.allow_answer = False
+        # Disable pause action and enable resume action within Run menu
         self.pauseRunAction.setEnabled(False)
         self.resumeRunAction.setEnabled(True)
         
     def _resume(self):
+        """
+        When resumeRunAction is pressed from the Run menu, this function is called.
+        It sets currently running thread status to .paused = False (which is taken
+        care of within the thread run() function). Also, disables resume and enables
+        pause menu actions.
+        """
         if self.mode == 'PASAT':
             self.audio_thread.paused = False
         elif self.mode == 'Demo':
             self.demo_thread.paused = False
+        # TODO: this does not work appropriately
         self.allow_answer = True
+        # Disable pause action and enable resume action within Run menu
         self.pauseRunAction.setEnabled(True)
         self.resumeRunAction.setEnabled(False)
         
     def _change_language(self):
+        """
+        Changes the global variable LANGUAGE to the user selected languaged and
+        restarts the application.
+        """
+        #TODO: do not use global
         global LANGUAGE
         selected_language = self.sender().text()
         if selected_language == _("Farsi"):
@@ -755,17 +792,24 @@ class Window(QMainWindow):
         App.exit(EXIT_CODE_REBOOT)
             
     def _save_preferences(self):
+        """
+        Saves the preferences entered in the ShowPreferences dialog, and is
+        called when .save_btn is clicked.
+        """
+        #TODO: Do not use global
         global NUMBERS_PER_TRIAL, INTERVAL, TRIAL_LENGTH, PAIRS_IN_DEMO
         NUMBERS_PER_TRIAL = int(self.numbers_per_trial_input.text())
         INTERVAL = int(self.interval_input.text())
         PAIRS_IN_DEMO = int(self.pairs_in_demo_input.text())
         TRIAL_LENGTH = NUMBERS_PER_TRIAL * INTERVAL
+        # Show/hide the demo button based on the show_demo_input 
         if self.show_demo_input.isChecked():
             self.demo_btn.show()
             self.show_demo_on = True
         else:
             self.demo_btn.hide()
             self.show_demo_on = False
+        # Show/hide the timer label based on the show_timer_input 
         if self.show_timer_input.isChecked():
             self.timer_label.show()
             self.show_timer_on = True
@@ -775,6 +819,9 @@ class Window(QMainWindow):
         self.preferences_dialog.close()
         
     def _show_about(self):
+        """
+        Shows the About message. Tirggered by About from Help menu.
+        """
         QMessageBox.about(self, "About", _("""
         <h2>Paced Auditory Serial Adition Test (PASAT)</h2>
         Developed by Amin Saberi (amnsbr@gmail.com)

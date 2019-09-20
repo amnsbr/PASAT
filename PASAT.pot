@@ -5,76 +5,129 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
-"POT-Creation-Date: 2019-08-29 12:18+0430\n"
-"PO-Revision-Date: 2019-08-29 12:21+0330\n"
+"POT-Creation-Date: 2019-08-29 18:13+0430\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Type: text/plain; charset=cp1252\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: pygettext.py 1.5\n"
-"X-Generator: Poedit 1.5.7\n"
 
-#: PASAT.py:255
-msgid "Name"
-msgstr "نام"
 
-#: PASAT.py:258
-msgid "Code"
-msgstr "کد"
+#: PASAT.py:100
+msgid "Session"
+msgstr ""
 
-#: PASAT.py:259
-msgid "Register"
-msgstr "ثبت"
+#: PASAT.py:102
+msgid "Options"
+msgstr ""
 
-#: PASAT.py:284
-msgid "Please provide name"
-msgstr "لطفا نام خود را وارد کنید."
+#: PASAT.py:103
+msgid "Help"
+msgstr ""
 
-#: PASAT.py:312
-msgid "Start"
-msgstr "شروع"
-
-#: PASAT.py:317
+#: PASAT.py:111 PASAT.py:253
 msgid "Exit"
-msgstr "خروج"
+msgstr ""
 
-#: PASAT.py:356
-msgid "Correct"
-msgstr "درست"
+#: PASAT.py:122 PASAT.py:303
+msgid "Preferences"
+msgstr ""
 
-#: PASAT.py:360
-msgid "Incorrect"
-msgstr "نادرست"
+#: PASAT.py:125
+msgid "Languages"
+msgstr ""
 
-#: PASAT.py:467
-msgid "Correct Answers"
-msgstr "پاسخ‌های درست"
+#: PASAT.py:126
+msgid "Farsi"
+msgstr ""
 
-#: PASAT.py:468
-msgid "Incorrect Answers"
-msgstr "پاسخ‌های نادرست"
+#: PASAT.py:131
+msgid "English"
+msgstr ""
 
-#: PASAT.py:469
-msgid "Not Answered"
-msgstr "پاسخ داده نشده"
+#: PASAT.py:137
+msgid "About"
+msgstr ""
 
-#: PASAT.py:470
-msgid "Correct %"
-msgstr "درصد پاسخ‌های درست"
+#: PASAT.py:208
+msgid "Name"
+msgstr ""
 
-#: PASAT.py:471
-msgid "Results List"
-msgstr "لیست نتایج"
+#: PASAT.py:211
+msgid "Code"
+msgstr ""
 
-#: PASAT.py:472
-msgid "Reaction Times"
-msgstr "زمان‌های پاسخ"
+#: PASAT.py:212
+msgid "Register"
+msgstr ""
 
-#: PASAT.py:473
-msgid "Mean Reaction Time"
-msgstr "میانگین زمان پاسخ"
+#: PASAT.py:248
+msgid "Start"
+msgstr ""
 
-#: PASAT.py:477 PASAT.py:482
+#: PASAT.py:267 PASAT.py:273
 msgid "Results"
-msgstr "نتایج"
+msgstr ""
+
+#: PASAT.py:314
+msgid "Numbers per trial"
+msgstr ""
+
+#: PASAT.py:318
+msgid "Interval between numbers (seconds)"
+msgstr ""
+
+#: PASAT.py:323
+msgid "Cancel"
+msgstr ""
+
+#: PASAT.py:325
+msgid "Save"
+msgstr ""
+
+#: PASAT.py:355
+msgid "Please provide name"
+msgstr ""
+
+#: PASAT.py:485
+msgid "Correct"
+msgstr ""
+
+#: PASAT.py:489
+msgid "Incorrect"
+msgstr ""
+
+#: PASAT.py:506
+msgid "Finished"
+msgstr ""
+
+#: PASAT.py:513
+msgid "Correct Answers"
+msgstr ""
+
+#: PASAT.py:514
+msgid "Incorrect Answers"
+msgstr ""
+
+#: PASAT.py:515
+msgid "Not Answered"
+msgstr ""
+
+#: PASAT.py:516
+msgid "Correct %"
+msgstr ""
+
+#: PASAT.py:517
+msgid "Results List"
+msgstr ""
+
+#: PASAT.py:518
+msgid "Reaction Times"
+msgstr ""
+
+#: PASAT.py:519
+msgid "Mean Reaction Time"
+msgstr ""
+

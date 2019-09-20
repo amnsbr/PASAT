@@ -65,10 +65,12 @@ class PlayNumbersThread(QtCore.QThread):
             for i in range(round(100*(self.interval-length))):
                 while self.paused:
                     pass
-                time.sleep(0.01)
-           
-        self.stop()
-    
+                time.sleep(0.01)           
+        # This 0 serves as a right-padding and is necessary for the last interval
+        # to be calculated when the input is via keyboard 
+        self.new_number.emit(0, time.time())
+        self.finished.emit()
+        
     def stop(self):
         # This 0 serves as a right-padding and is necessary for the last interval
         # to be calculated when the input is via keyboard 
@@ -120,8 +122,9 @@ class PlayDemoThread(QtCore.QThread):
                 time.sleep(0.01)
         # This 0 serves as a right-padding and is necessary for the last interval
         # to be calculated when the input is via keyboard 
-        self.stop()
-
+        self.new_pair.emit((0,0), time.time())
+        self.finished.emit()
+        
     def stop(self):
         self.new_pair.emit((0,0), time.time())
         self.finished.emit()
