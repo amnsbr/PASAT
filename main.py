@@ -194,7 +194,7 @@ class Window(QMainWindow):
         answer_reg_ex = QtCore.QRegExp("[0-9]+")
         answer_input_validator = QtGui.QRegExpValidator(answer_reg_ex, self.answer_input)
         self.answer_input.setValidator(answer_input_validator)
-        self.answer_input.returnPressed.connect(self._answer_input_return_pressed)
+        # self.answer_input.returnPressed.connect(self._answer_input_return_pressed)
         self.answer_input.setStyleSheet("""
                                         .QLineEdit {
                                         border: 0;
@@ -470,7 +470,6 @@ class Window(QMainWindow):
             self.random_numbers = []
             for dummy in range(NUMBERS_PER_TRIAL):
                 self.random_numbers.append(random.randint(1,10))
-
             self.audio_thread = PlayNumbersThread(self.random_numbers, INTERVAL, LANGUAGE)
             self.audio_thread.start()
             self.audio_thread.new_number.connect(self._update_number)
@@ -536,7 +535,9 @@ class Window(QMainWindow):
         if not self.allow_answer:
             return
         # Backspace will remove the last digit
-        self.answer_input.setFocus()
+        # self.answer_input.setFocus()
+        if e.key() in [QtCore.Qt.Key_Return, QtCore.Qt.Key_Enter]:
+            self._answer_input_return_pressed() 
         try:
             key_str = chr(e.key())
         except:
@@ -561,7 +562,7 @@ class Window(QMainWindow):
         # If the answer has not been already entered, use the current value of
         # current_typed_answer as the answer for previous interval. If no answer
         # is provided, pass "" to the _submit_answer, which indicates not answered
-        if self.allow_answer and not self.answerButton_clicked:
+        if ((self.allow_answer) and (not self.answerButton_clicked)):
             self._submit_demo_answer(self.current_typed_answer)
         
         self.answerButton_clicked = False
@@ -588,7 +589,7 @@ class Window(QMainWindow):
         # If the answer has not been already entered, use the current value of
         # current_typed_answer as the answer for previous interval. If no answer
         # is provided, pass "" to the _submit_answer, which indicates not answered
-        if self.allow_answer and not self.answerButton_clicked:
+        if ((self.allow_answer) and (not self.answerButton_clicked)):
             self._submit_answer(self.current_typed_answer)
 
         # Reinitialize state variables and answer_input
@@ -754,6 +755,8 @@ class Window(QMainWindow):
             self.audio_thread.paused = True
         elif self.mode == 'Demo':
             self.demo_thread.paused = True
+        if self.show_timer_on:
+            self.timer_thread.paused = True
         # TODO: this does not work appropriately
         self.allow_answer = False
         # Disable pause action and enable resume action within Run menu
@@ -771,6 +774,8 @@ class Window(QMainWindow):
             self.audio_thread.paused = False
         elif self.mode == 'Demo':
             self.demo_thread.paused = False
+        if self.show_timer_on:
+            self.timer_thread.paused = False
         # TODO: this does not work appropriately
         self.allow_answer = True
         # Disable pause action and enable resume action within Run menu

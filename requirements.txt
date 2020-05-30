@@ -1,2 +1,2 @@
 playsound==1.2.2
-PyQt5==5.9.7
+PyQt5==5.10

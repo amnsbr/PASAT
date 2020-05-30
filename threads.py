@@ -9,6 +9,7 @@ import os, sys
 from PyQt5 import QtCore
 from playsound import playsound
 import time
+from multiprocessing import Process
 
 def resource_path(relative_path):
     """
@@ -20,6 +21,28 @@ def resource_path(relative_path):
         base_path = os.path.abspath(".")
 
     return os.path.join(base_path, relative_path)
+
+
+def run_with_limited_time(func, args, kwargs, time):
+    """Runs a function with time limit
+
+    :param func: The function to run
+    :param args: The functions args, given as tuple
+    :param kwargs: The functions keywords, given as dict
+    :param time: The time limit in seconds
+    :return: True if the function ended successfully. False if it was terminated.
+
+    This is useful for playsound in Linux. Because in Linux (unlike Windows), playsound goes
+    forever, and stops the next line of code from running
+    """
+    p = Process(target=func, args=args, kwargs=kwargs)
+    p.start()
+    p.join(time)
+    if p.is_alive():
+        p.terminate()
+        return False
+
+    return True
 
 class PlayNumbersThread(QtCore.QThread):
     """
@@ -60,7 +83,7 @@ class PlayNumbersThread(QtCore.QThread):
             # its length, and also to calculate reaction time
             time_before_playsound = time.time()
             self.new_number.emit(number, time_before_playsound)
-            playsound(resource_path(os.path.join("audio", self.language, "{:d}.wav".format(number))))
+            run_with_limited_time(playsound,[resource_path(os.path.join("audio", self.language, "{:d}.wav".format(number)))], {}, 1)
             length = time.time() - time_before_playsound
             for i in range(round(100*(self.interval-length))):
                 while self.paused:
@@ -150,6 +173,7 @@ class TimerThread(QtCore.QThread):
         """
         super().__init__()
         self.duration = duration
+        self.paused = False
 
     def run(self):
         """
@@ -158,7 +182,17 @@ class TimerThread(QtCore.QThread):
         then used by Window._update_timer to draw it on the screen.
         """
         total_time = 0
+
+        # for i in range(100*self.duration):
+        #     while self.paused:
+        #         pass
+        #     time.sleep(0.01)
+        #     total_time+=0.01
+        #     self.time_step.emit(total_time)
+
         while total_time <= self.duration-0.1:
+            while self.paused:
+                time.sleep(0.1)
             time.sleep(0.1)
             total_time+=0.1
             self.time_step.emit(total_time)
