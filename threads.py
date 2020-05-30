@@ -182,14 +182,6 @@ class TimerThread(QtCore.QThread):
         then used by Window._update_timer to draw it on the screen.
         """
         total_time = 0
-
-        # for i in range(100*self.duration):
-        #     while self.paused:
-        #         pass
-        #     time.sleep(0.01)
-        #     total_time+=0.01
-        #     self.time_step.emit(total_time)
-
         while total_time <= self.duration-0.1:
             while self.paused:
                 time.sleep(0.1)
