@@ -9,8 +9,9 @@ This app is the audiovisual implementation of Paced Auditory Serial Addition Tes
  - Save the results as a CSV file
 
 ## Usage
-
-> git clone https://github.com/amnsbr/PASAT.git
-> cd PASAT
-> pip install -r requirements.txt
-> python main.py
+~~~bash
+git clone https://github.com/amnsbr/PASAT.git 
+cd PASAT
+pip install -r requirements.txt
+python main.py
+~~~
